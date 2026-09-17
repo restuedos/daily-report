@@ -31,15 +31,25 @@ function wrapPreviewDocument(bodyHtml: string, css: string) {
 html, body { margin: 0; padding: 12px; min-height: 100%; cursor: text; }
 body { outline: none; }
 .ph {
-  display: inline-block;
+  display: inline;
   background: #e6f4f1;
   color: #0f6b5c;
   border: 1px dashed #0f6b5c;
-  border-radius: 4px;
-  padding: 0 4px;
+  border-radius: 3px;
+  padding: 0 3px;
   font-family: ui-monospace, monospace;
-  font-size: 0.9em;
-  white-space: nowrap;
+  font-size: 0.85em;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+}
+.ph.ph-block {
+  display: inline-block;
+  background: #eef2ff;
+  color: #3730a3;
+  border-color: #6366f1;
+  font-size: 0.75em;
+  margin: 1px 0;
 }
 ${css}
 </style>
@@ -50,19 +60,51 @@ ${css}
 
 /** Convert raw {{tokens}} in HTML into visual chips for editing. */
 function decoratePlaceholders(html: string) {
-  return html.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_m, expr: string) => {
-    const safe = String(expr)
+  // Keep mustaches in attributes intact for save, but neutralize src/href so the
+  // browser does not treat "{{logoUrl}}" as a broken image URL in the editor.
+  let out = html.replace(
+    /\s(src|href)=(["'])\{\{\s*([^}]+?)\s*\}\}\2/gi,
+    (_m, attr: string, quote: string, expr: string) => {
+      const safe = String(expr)
+        .trim()
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;");
+      return ` ${attr}=${quote}data:,${quote} data-ph-attr="${attr}:${safe}"`;
+    },
+  );
+
+  out = out.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, expr: string, offset: number) => {
+    const before = out.slice(Math.max(0, offset - 300), offset);
+    const lastLt = before.lastIndexOf("<");
+    const lastGt = before.lastIndexOf(">");
+    if (lastLt > lastGt) return match;
+
+    const trimmed = String(expr).trim();
+    const safe = trimmed
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
-    return `<span class="ph" data-ph="${safe}" contenteditable="false">{{${safe}}}</span>`;
+    const isBlock = /^[#/]/.test(trimmed) || trimmed.startsWith("inc ");
+    const cls = isBlock ? "ph ph-block" : "ph";
+    return `<span class="${cls}" data-ph="${safe}" contenteditable="false">{{${safe}}}</span>`;
   });
+
+  return out;
 }
 
 /** Convert visual chips back to {{tokens}}; keep other HTML intact. */
 function undecoratePlaceholders(html: string) {
   const doc = new DOMParser().parseFromString(`<div id="root">${html}</div>`, "text/html");
+  doc.querySelectorAll("[data-ph-attr]").forEach((el) => {
+    const raw = el.getAttribute("data-ph-attr") || "";
+    const colon = raw.indexOf(":");
+    if (colon === -1) return;
+    const attr = raw.slice(0, colon);
+    const expr = raw.slice(colon + 1);
+    el.setAttribute(attr, `{{${expr}}}`);
+    el.removeAttribute("data-ph-attr");
+  });
   doc.querySelectorAll("[data-ph]").forEach((el) => {
     const token = el.getAttribute("data-ph") || "";
     el.replaceWith(doc.createTextNode(`{{${token}}}`));
