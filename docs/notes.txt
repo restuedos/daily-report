@@ -1,0 +1,11 @@
+saya ingin membuat suatu system yaitu pembuatan daily report secara otomatis dengan template informasi yang harus diisi pada document yang tertera, berikut fungsionalnya
+
+1. dalam sistem ini akan ada beberapa yang harus diisi yaitu pembuatan document kita harus mengisi project no, nama project, nama perusahaan dan logo, nama pt client dan logo,nama manpower dan jumlahnya, working hour, remaks ( opsional diisi), extra job (opsional diisi), main equipment dan quantity, work description ( opsional diisi), arrival to the site, activity done this day, documentation, note ( opsional diisi), work evaluation ( opsional diisi), activity plant for next shift(opsional diisi),  hanya mengirimkan logo perusahaan kami,logo client, tanggal, leave site, nama perusahaan, nama client,signature ( nama penanda tangan dan softfile(gambar) tanda tangan, signature dan date perusahaan wajib ada tapi ttd basah, sesuaikan seluruh tabel daily reportnya seperti template diatas tidak ada yang berubah sama sekali hanya saja kita bisa memasukan data data nya dan langsung jadi dengan format pdf
+2. pengaksesan sistem ini bisa dihandphone dandi komputer berupa aplikasi
+3. jaringan pengaksesan ini universal jaringan menggunakan server apatche dari xampp dan mysql
+4. kita bisa membuat daily report lagi namun dengan isi yang sama tanpa harus mengisi dari awal 
+5. seluruh data pengeditan bisa disimpan otomatis pada sistem dengan nama usernya masing masing 
+6. kita bisa login dengan membuat akun sendiri 
+7. ada riwayat login dari beberapa device yang hanya bisa dilihat oleh admin
+8. buat graphicnya sebagus mungkin seperti inventaris kemarin 
+9. kita bisa membuat surat jalan  dengan template yang tertera sesuai dengan suratnya (seperti surat jalan yang tertera) jadi nanti dia akan mengisi sendiri pada documentnya kita cukup untuk memberikan document templatenya saja
