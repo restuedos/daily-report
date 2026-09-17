@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NumberedListField } from "@/components/NumberedListField";
 
 export type ManpowerRow = {
   name: string;
@@ -349,10 +350,12 @@ export function ReportForm({
           <label className="label">Work Description</label>
           <textarea className="textarea" rows={2} value={form.workDescription} onChange={(e) => update("workDescription", e.target.value)} />
         </div>
-        <div className="field md:col-span-2">
-          <label className="label">Activities done this day *</label>
-          <textarea className="textarea" rows={4} value={form.activitiesDone} onChange={(e) => update("activitiesDone", e.target.value)} />
-        </div>
+        <NumberedListField
+          label="Activities done this day"
+          required
+          value={form.activitiesDone}
+          onChange={(v) => update("activitiesDone", v)}
+        />
         <div className="field">
           <label className="label">Note</label>
           <textarea className="textarea" rows={2} value={form.notes} onChange={(e) => update("notes", e.target.value)} />
@@ -361,10 +364,11 @@ export function ReportForm({
           <label className="label">Work Evaluation</label>
           <textarea className="textarea" rows={2} value={form.workEvaluation} onChange={(e) => update("workEvaluation", e.target.value)} />
         </div>
-        <div className="field md:col-span-2">
-          <label className="label">Activities planned for next Shift</label>
-          <textarea className="textarea" rows={2} value={form.activitiesNextShift} onChange={(e) => update("activitiesNextShift", e.target.value)} />
-        </div>
+        <NumberedListField
+          label="Activities planned for next Shift"
+          value={form.activitiesNextShift}
+          onChange={(v) => update("activitiesNextShift", v)}
+        />
         <div className="field md:col-span-2">
           <label className="label">Documentation (multi foto)</label>
           <input
