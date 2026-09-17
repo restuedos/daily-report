@@ -53,3 +53,6 @@ next-env.d.ts
 docs/_preview-*
 scripts/probe-*.ts
 scripts/test-docx-export.ts
+
+# Local filesystem uploads leftover (dev-only stack)
+storage/
