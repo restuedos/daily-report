@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TemplateType {
+  DAILY_REPORT
+  DELIVERY_NOTE
+}
+
+enum ReportStatus {
+  DRAFT
+  FINAL
+}
+
+model User {
+  id           String         @id @default(cuid())
+  name         String
+  email        String         @unique
+  passwordHash String
+  role         Role           @default(USER)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  loginHistory LoginHistory[]
+  clients      Client[]
+  company      CompanyProfile?
+  reports      DailyReport[]
+  deliveryNotes DeliveryNote[]
+  templatesUpdated DocumentTemplate[] @relation("TemplateUpdatedBy")
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String?
+  userAgent String?
+  device    String?
+  loggedAt  DateTime @default(now())
+
+  @@index([userId, loggedAt])
+  @@index([loggedAt])
+}
+
+model CompanyProfile {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String
+  logoObjectKey      String?
+  signatureObjectKey String?
+  defaultSignerName  String?
+}
+
+model Client {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  logoObjectKey String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  reports       DailyReport[]
+
+  @@index([userId])
+}
+
+model DocumentTemplate {
+  id           String       @id @default(cuid())
+  name         String
+  type         TemplateType
+  html         String       @db.Text
+  css          String       @db.Text
+  placeholders Json
+  isActive     Boolean      @default(false)
+  version      Int          @default(1)
+  updatedById  String?
+  updatedBy    User?        @relation("TemplateUpdatedBy", fields: [updatedById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([type, isActive])
+}
+
+model DailyReport {
+  id                  String           @id @default(cuid())
+  ownerUserId         String
+  owner               User             @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  clientId            String?
+  client              Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  status              ReportStatus     @default(DRAFT)
+  projectNo           String
+  projectName         String
+  reportNo            String
+  weekNo              String?
+  reportDate          DateTime
+  companyName         String
+  companyLogoKey      String?
+  clientName          String
+  clientLogoKey       String?
+  arrivalTime         String?
+  leaveTime           String?
+  workDescription     String?          @db.Text
+  activitiesDone      String?          @db.Text
+  notes               String?          @db.Text
+  workEvaluation      String?          @db.Text
+  activitiesNextShift String?          @db.Text
+  signerName          String?
+  signatureObjectKey  String?
+  signedDate          DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  manpower            ReportManpower[]
+  equipment           ReportEquipment[]
+  photos              ReportPhoto[]
+
+  @@index([ownerUserId, reportDate])
+}
+
+model ReportManpower {
+  id            String      @id @default(cuid())
+  reportId      String
+  report        DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  sortOrder     Int         @default(0)
+  name          String
+  qualification String
+  workingHours  String
+  remarks       String?
+  extraJob      String?
+}
+
+model ReportEquipment {
+  id        String      @id @default(cuid())
+  reportId  String
+  report    DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  sortOrder Int         @default(0)
+  name      String
+  quantity  String
+}
+
+model ReportPhoto {
+  id         String      @id @default(cuid())
+  reportId   String
+  report     DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  objectKey  String
+  sortOrder  Int         @default(0)
+  caption    String?
+  createdAt  DateTime    @default(now())
+}
+
+model DeliveryNote {
+  id            String   @id @default(cuid())
+  ownerUserId   String
+  owner         User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  noteNumber    String
+  noteDate      DateTime
+  senderName    String
+  receiverName  String
+  driverName    String?
+  vehicleInfo   String?
+  items         Json
+  notes         String?  @db.Text
+  signerName    String?
+  signatureKey  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([ownerUserId, noteDate])
+}

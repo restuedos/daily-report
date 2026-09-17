@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Daily Report
 
-## Getting Started
+Aplikasi web Daily Report & Surat Jalan: form terstruktur, template HTML di database, upload MinIO, export PDF/DOCX.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router) + TypeScript
+- PostgreSQL + Prisma
+- Auth.js (credentials) + role `USER` / `ADMIN`
+- MinIO (S3)
+- Docker Compose (local / prod)
+
+## Cara menjalankan (local)
+
+### 1. Clone & install
+
+```bash
+git clone git@github.com:restuedos/daily-report.git
+cd daily-report
+npm install
+cp .env.local.example .env.local
+```
+
+Sesuaikan secret/password di `.env.local` bila perlu.
+
+### 2. Jalankan PostgreSQL + MinIO
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local up -d db minio minio-init
+```
+
+### 3. Migrasi & seed
+
+```bash
+npx prisma migrate deploy
+npx prisma db seed
+```
+
+### 4. Jalankan app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Akun admin awal diambil dari env (`ADMIN_EMAIL` / `ADMIN_PASSWORD` di `.env.local.example`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+MinIO console: [http://localhost:19001](http://localhost:19001) (default `minioadmin` / `minioadmin`).
 
-## Learn More
+### Alternatif: full stack Docker + HTTPS lokal
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp .env.local.example .env.local
+./scripts/mkcert-init.sh daily-report.localhost
+# tambahkan 127.0.0.1 daily-report.localhost ke /etc/hosts
+./scripts/dev-up.sh
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Buka `https://daily-report.localhost`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Production
 
-## Deploy on Vercel
+```bash
+cp .env.prod.example .env.prod
+# isi DOMAIN, CERTBOT_EMAIL, secrets
+./scripts/prod-up.sh
+./scripts/certbot-init.sh
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Pisahkan project Compose local vs prod, misalnya:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+COMPOSE_PROJECT_NAME=dailyreport-local ./scripts/dev-up.sh
+COMPOSE_PROJECT_NAME=dailyreport-prod ./scripts/prod-up.sh
+```
+
+## Fitur
+
+- Register / login, autosave report, duplikat report
+- Template Editor (admin): HTML+CSS Handlebars, preview, aktifkan
+- Export PDF (Puppeteer) & DOCX
+- Surat Jalan dengan template terpisah
+- Admin: riwayat login
+- Sample dokumen di `docs/`
