@@ -1,3 +1,7 @@
+/**
+ * Daily report layout locked to docs/59. Daily Report 18 Agustus 2026.docx
+ * 9-column grid, logo/party rowspans, fixed empty manpower/equipment rows.
+ */
 export const DAILY_REPORT_PLACEHOLDERS = [
   "projectNo",
   "projectName",
@@ -37,140 +41,142 @@ export const DELIVERY_NOTE_PLACEHOLDERS = [
   "signatureUrl",
 ];
 
-/**
- * 9-column grid matching the sample Word daily report.
- * Spans are critical so vertical borders line up across every section.
- * No rowspan (html-to-docx breaks it). Prefer <br/> over nested <div>.
- */
+/** Sample sheet uses 7 manpower body rows and 11 equipment body rows. */
+export const MANPOWER_ROW_COUNT = 7;
+export const EQUIPMENT_ROW_COUNT = 11;
+
 export const DAILY_REPORT_HTML = `
 <div class="sheet">
-  <table class="main" width="700" cellspacing="0" cellpadding="5" border="1">
-    <!-- Header: 2 + 6 + 1 = 9 -->
-    <tr>
-      <td class="logo" colspan="2" align="center" valign="middle">
-        {{#if clientLogoUrl}}<img class="logo-img" src="{{clientLogoUrl}}" width="56" height="40" alt="" />{{else}}&nbsp;{{/if}}
+  <table class="main">
+    <colgroup>
+      <col class="c0" /><col class="c1" /><col class="c2" /><col class="c3" /><col class="c4" />
+      <col class="c5" /><col class="c6" /><col class="c7" /><col class="c8" />
+    </colgroup>
+
+    <!-- Header logos + project (logos rowspan 2) -->
+    <tr class="r-logo">
+      <td class="logo" colspan="2" rowspan="2">
+        {{#if clientLogoUrl}}<img src="{{clientLogoUrl}}" alt="" />{{else}}&nbsp;{{/if}}
       </td>
-      <td class="project" colspan="6" align="center" valign="middle" style="text-align:center;">
-        <p style="text-align:center;margin:0;"><strong>PROJECT NO:</strong> {{projectNo}}</p>
-        <p style="text-align:center;margin:4px 0 0;"><strong>PROJECT:</strong> {{projectName}}</p>
+      <td class="project-no" colspan="6">PROJECT NO: {{projectNo}}</td>
+      <td class="logo" colspan="1" rowspan="2">
+        {{#if companyLogoUrl}}<img src="{{companyLogoUrl}}" alt="" />{{else}}&nbsp;{{/if}}
       </td>
-      <td class="logo" colspan="1" align="center" valign="middle">
-        {{#if companyLogoUrl}}<img class="logo-img" src="{{companyLogoUrl}}" width="56" height="40" alt="" />{{else}}&nbsp;{{/if}}
+    </tr>
+    <tr class="r-project">
+      <td class="project-name" colspan="6">
+        <div>PROJECT:</div>
+        <div class="project-title">{{projectName}}</div>
       </td>
     </tr>
 
-    <!-- Meta: 2 + 3 + 3 + 1 = 9 -->
-    <tr>
-      <td class="party" colspan="2" align="center" valign="middle"><strong>{{clientName}}</strong></td>
-      <td class="meta" colspan="3" align="center" valign="middle">
-        <strong>Date:</strong> {{reportDate}}<br />
-        <strong>WEEK No:</strong> {{weekNo}}
-      </td>
-      <td class="meta" colspan="3" align="center" valign="middle">
-        <strong>DAILY REPORT No:</strong> {{reportNo}}
-      </td>
-      <td class="party" colspan="1" align="center" valign="middle"><strong>{{companyName}}</strong></td>
+    <!-- Parties + meta (parties rowspan 2) -->
+    <tr class="r-meta">
+      <td class="party" colspan="2" rowspan="2">{{clientName}}</td>
+      <td class="meta" colspan="3">Date: {{reportDate}}</td>
+      <td class="meta" colspan="3">DAILY REPORT No: {{reportNo}}</td>
+      <td class="party" colspan="1" rowspan="2">{{companyName}}</td>
+    </tr>
+    <tr class="r-week">
+      <td class="meta" colspan="3">&nbsp;</td>
+      <td class="meta center" colspan="3">WEEK No: {{weekNo}}</td>
     </tr>
 
-    <!-- Manpower head: 1 + 2 + 2 + 2 + 1 + 1 = 9 -->
+    <!-- Manpower -->
     <tr class="head">
-      <td align="center" valign="middle"><strong>No.</strong></td>
-      <td colspan="2" align="center" valign="middle"><strong>NAME</strong></td>
-      <td colspan="2" align="center" valign="middle"><strong>QUALIFICATION</strong></td>
-      <td colspan="2" align="center" valign="middle"><strong>Working<br />hours</strong></td>
-      <td align="center" valign="middle"><strong>Remarks</strong></td>
-      <td align="center" valign="middle"><strong>Extra<br />job</strong></td>
+      <td class="center">No.</td>
+      <td class="center" colspan="2">NAME</td>
+      <td class="center" colspan="2">QUALIFICATION</td>
+      <td class="center" colspan="2">Working hours</td>
+      <td class="center">Remarks</td>
+      <td class="center">Extra job</td>
     </tr>
     {{#each manpower}}
     <tr class="data">
-      <td align="center" valign="middle">{{inc @index}}.</td>
-      <td colspan="2" valign="middle">{{name}}</td>
-      <td colspan="2" align="center" valign="middle">{{qualification}}</td>
-      <td colspan="2" align="center" valign="middle">{{workingHours}}</td>
-      <td valign="middle">{{#if remarks}}{{remarks}}{{else}}&nbsp;{{/if}}</td>
-      <td valign="middle">{{#if extraJob}}{{extraJob}}{{else}}&nbsp;{{/if}}</td>
+      <td class="center">{{#if name}}{{inc @index}}.{{else}}&nbsp;{{/if}}</td>
+      <td colspan="2">{{name}}</td>
+      <td colspan="2">{{qualification}}</td>
+      <td class="center" colspan="2">{{workingHours}}</td>
+      <td>{{remarks}}</td>
+      <td>{{extraJob}}</td>
     </tr>
     {{/each}}
-    <tr>
-      <td class="total" colspan="9" valign="middle"><strong>Total Manpower: {{totalManpower}}</strong></td>
+    <tr class="total-row">
+      <td class="total center" colspan="7">Total Manpower: {{totalManpower}}</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
     </tr>
 
-    <!-- Equipment: 1 + 4 + 4 = 9 (Quantity aligns with hours+remarks+extra) -->
+    <!-- Equipment -->
     <tr class="head">
-      <td align="center" valign="middle"><strong>No.</strong></td>
-      <td colspan="4" align="center" valign="middle"><strong>MAIN EQUIPMENT</strong></td>
-      <td colspan="4" align="center" valign="middle"><strong>Quantity</strong></td>
+      <td class="center">No.</td>
+      <td colspan="4">MAIN EQUIPMENT</td>
+      <td class="center" colspan="2">Quantity</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
     </tr>
     {{#each equipment}}
     <tr class="data">
-      <td align="center" valign="middle">{{inc @index}}.</td>
-      <td colspan="4" valign="middle">{{name}}</td>
-      <td colspan="4" align="center" valign="middle">{{quantity}}</td>
+      <td class="center">{{#if name}}{{inc @index}}.{{else}}&nbsp;{{/if}}</td>
+      <td colspan="4">{{name}}</td>
+      <td class="center" colspan="2">{{quantity}}</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
     </tr>
     {{/each}}
 
-    <tr>
-      <td class="section" colspan="9" valign="middle"><strong>Work Description:</strong></td>
-    </tr>
-    <tr>
-      <td class="body" colspan="9" valign="top">{{#if workDescription}}{{workDescription}}{{else}}&nbsp;{{/if}}</td>
-    </tr>
-    <tr>
-      <td colspan="9" valign="middle">{{arrivalTime}}: Arrival to the site</td>
-    </tr>
-
-    <!-- Activities / docs: 4 + 5 = 9 -->
-    <tr>
-      <td class="section" colspan="4" valign="middle"><strong>Activities done this day:</strong></td>
-      <td class="section" colspan="5" valign="middle"><strong>Documentation:</strong></td>
-    </tr>
-    <tr>
-      <td class="body activity" colspan="4" valign="top">
-        {{#if activitiesDone}}{{activitiesDone}}{{else}}&nbsp;{{/if}}
-        <br /><br />
-        <strong>Note:</strong> {{#if notes}}{{notes}}{{else}}-{{/if}}
-        <br />
-        <strong>Work Evaluation:</strong> {{#if workEvaluation}}{{workEvaluation}}{{else}}-{{/if}}
+    <tr><td class="section" colspan="9">Work Description:</td></tr>
+    <tr><td class="body" colspan="9">{{workDescription}}</td></tr>
+    <tr><td class="time-line" colspan="9">{{arrivalTime}}: Arrival to the site</td></tr>
+    <tr><td class="section" colspan="9">Activities done this day:</td></tr>
+    <tr class="r-activities">
+      <td class="activity" colspan="4">
+        <div class="pre">{{activitiesDone}}</div>
+        <div class="note-line">Note: {{notes}}</div>
+        <div class="note-line">Work Evaluation: {{workEvaluation}}</div>
       </td>
-      <td class="body docs" colspan="5" valign="top" align="center">
-        {{#each photos}}
-        <img src="{{url}}" width="120" height="90" alt="" />
-        {{else}}
-        &nbsp;
-        {{/each}}
+      <td class="docs" colspan="5">
+        <div class="docs-label">Documentation:</div>
+        <div class="photos">
+          {{#each photos}}
+          <img src="{{url}}" alt="" />
+          {{/each}}
+        </div>
       </td>
     </tr>
+    <tr><td class="section" colspan="9">Activities planned for next Shift:</td></tr>
+    <tr class="r-next"><td class="body" colspan="9">{{activitiesNextShift}}</td></tr>
+    <tr><td class="time-line" colspan="9">{{leaveTime}}: Leave site</td></tr>
 
-    <tr>
-      <td class="section" colspan="9" valign="middle"><strong>Activities planned for next Shift:</strong></td>
+    <tr class="r-sign-head">
+      <td class="party" colspan="6">{{companyName}}</td>
+      <td class="party" colspan="3">{{clientName}}</td>
     </tr>
-    <tr>
-      <td class="body" colspan="9" valign="top">{{#if activitiesNextShift}}{{activitiesNextShift}}{{else}}&nbsp;{{/if}}</td>
+    <tr class="r-sign-pad">
+      <td class="sign-box" colspan="6">
+        {{#if signatureUrl}}<img class="sig" src="{{signatureUrl}}" alt="" />{{else}}&nbsp;{{/if}}
+      </td>
+      <td class="sign-box" colspan="3">&nbsp;</td>
     </tr>
-    <tr>
-      <td colspan="9" valign="middle">{{leaveTime}}: Leave site</td>
-    </tr>
-
-    <!-- Signatures: 5 + 4 = 9 (near-equal) -->
-    <tr>
-      <td class="party" colspan="5" align="center" valign="middle"><strong>{{companyName}}</strong></td>
-      <td class="party" colspan="4" align="center" valign="middle"><strong>{{clientName}}</strong></td>
-    </tr>
-    <tr>
-      <td class="sign" colspan="5" align="center" valign="bottom">
-        {{#if signatureUrl}}<img src="{{signatureUrl}}" width="150" height="60" alt="" /><br />{{/if}}
+    <tr class="r-sign-meta">
+      <td class="sign-meta" colspan="6">
         Signature: {{signerName}}{{#if signedDate}} : {{signedDate}}{{/if}}
       </td>
-      <td class="sign" colspan="4" align="center" valign="bottom">
-        Signature:<br /><br /><br />Date:
+      <td class="sign-meta client-meta" colspan="3">
+        <span class="sig-field">Signature: <span class="uline"></span></span>
+        <span class="sig-field">Date: <span class="uline"></span></span>
       </td>
     </tr>
   </table>
 </div>
 `.trim();
 
+/** Letter page + sample-like margins (twips≈: top540 right360 bottom280 left360). */
 export const DAILY_REPORT_CSS = `
-@page { size: A4 portrait; margin: 0; }
+@page {
+  size: letter portrait;
+  margin: 9.5mm 6.35mm 4.9mm 6.35mm;
+}
 
 * { box-sizing: border-box; }
 
@@ -178,19 +184,19 @@ html, body {
   margin: 0;
   padding: 0;
   background: #fff;
-  color: #111;
+  color: #000;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 10.5px;
-  line-height: 1.3;
+  font-size: 9pt;
+  line-height: 1.25;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
 .page-pad {
   width: 100%;
-  max-width: 210mm;
+  max-width: 8.5in;
   margin: 0 auto;
-  padding: 12mm;
+  padding: 9.5mm 6.35mm 4.9mm 6.35mm;
   background: #fff;
 }
 
@@ -200,90 +206,177 @@ table.main {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  border: 1.5px solid #111;
+  border: 1px solid #000;
 }
 
 table.main td {
-  border: 1px solid #222;
-  padding: 6px 7px;
+  border: 1px solid #000;
+  padding: 2px 4px;
   vertical-align: middle;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 
-.logo { padding: 6px !important; text-align: center; }
-.logo img,
-.logo-img {
-  display: inline-block;
-  max-width: 56px;
-  max-height: 40px;
+/* Sample grid proportions (sum 11203) */
+col.c0 { width: 10.07%; }
+col.c1 { width: 12.73%; }
+col.c2 { width: 7.36%; }
+col.c3 { width: 9.09%; }
+col.c4 { width: 10.20%; }
+col.c5 { width: 1.54%; }
+col.c6 { width: 13.55%; }
+col.c7 { width: 15.22%; }
+col.c8 { width: 20.24%; }
+
+.logo {
+  text-align: center;
+  padding: 4px !important;
+}
+.logo img {
+  display: block;
+  margin: 0 auto;
+  max-width: 72px;
+  max-height: 48px;
   width: auto;
   height: auto;
   object-fit: contain;
 }
 
-.project {
-  font-size: 12px;
+.project-no {
+  text-align: center;
   font-weight: 700;
-  padding: 10px 8px !important;
-  line-height: 1.45;
+  font-size: 10pt;
+  padding: 4px 6px !important;
 }
+
+.project-name {
+  text-align: center;
+  font-weight: 700;
+  font-size: 10pt;
+  padding: 4px 6px !important;
+  line-height: 1.3;
+}
+.project-title { margin-top: 2px; font-size: 11pt; }
 
 .party {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.15px;
-  background: #fafafa;
+  text-align: center;
   font-weight: 700;
+  font-size: 9pt;
+  text-transform: uppercase;
+  padding: 4px !important;
 }
 
-.meta { font-size: 10.5px; line-height: 1.45; }
+.meta {
+  text-align: center;
+  font-weight: 700;
+  font-size: 9pt;
+}
+
+.center { text-align: center; }
 
 .head td {
-  background: #ececec !important;
   font-weight: 700;
-  font-size: 10px;
+  font-size: 9pt;
+  text-align: center;
+  height: 18px;
+}
+
+.data td { height: 17px; font-size: 9pt; }
+
+.total {
+  font-weight: 700;
   text-align: center;
 }
 
-.data td { min-height: 22px; }
-
-.total { background: #f7f7f7; font-weight: 700; }
-
 .section {
-  background: #f0f0f0 !important;
   font-weight: 700;
+  height: 17px;
 }
 
 .body {
   white-space: pre-wrap;
-  min-height: 32px;
   vertical-align: top !important;
-  text-align: left;
+  min-height: 14px;
 }
 
-.activity, .docs { min-height: 150px; height: 150px; }
+.time-line { font-weight: 700; height: 17px; }
 
-.docs img {
+.r-activities td { height: 210px; vertical-align: top !important; }
+
+.activity {
+  vertical-align: top !important;
+  padding: 4px 6px !important;
+}
+.pre { white-space: pre-wrap; min-height: 4.5em; }
+.note-line { margin-top: 10px; font-weight: 700; }
+
+.docs {
+  vertical-align: top !important;
+  padding: 4px 6px !important;
+}
+.docs-label { font-weight: 700; margin-bottom: 4px; }
+
+.photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: flex-start;
+}
+.photos img {
+  width: 88px;
+  height: 88px;
   object-fit: cover;
-  border: 1px solid #555;
-  margin: 3px;
-  vertical-align: top;
+  border: 1px solid #444;
 }
 
-.sign {
-  height: 120px;
-  vertical-align: bottom !important;
-  padding: 10px 8px 10px !important;
+.r-next td { height: 48px; vertical-align: top !important; }
+
+.r-sign-head td { height: 28px; }
+
+.r-sign-pad td.sign-box {
+  height: 64px;
+  vertical-align: middle !important;
+  text-align: center;
+  padding: 6px !important;
 }
 
-.sign img {
-  display: block;
-  margin: 0 auto 8px;
+.sig {
+  display: inline-block;
+  max-height: 48px;
+  max-width: 140px;
+  margin: 0 auto;
   object-fit: contain;
 }
 
+.r-sign-meta td.sign-meta {
+  height: 28px;
+  vertical-align: middle !important;
+  text-align: left;
+  padding: 4px 6px !important;
+  font-size: 9pt;
+}
+
+.client-meta {
+  white-space: normal;
+}
+
+.sig-field {
+  display: inline-block;
+  margin-right: 10px;
+  white-space: nowrap;
+}
+
+.uline {
+  display: inline-block;
+  width: 5.5em;
+  border-bottom: 1px solid #000;
+  vertical-align: baseline;
+  height: 0.85em;
+  margin-left: 2px;
+}
+
 @media print {
+  .page-pad { padding: 0; max-width: none; }
   table.main { page-break-inside: avoid; }
 }
 `.trim();

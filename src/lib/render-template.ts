@@ -3,6 +3,10 @@ import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import type { DailyReport, DeliveryNote, DocumentTemplate } from "@prisma/client";
 import { getObjectBuffer } from "@/lib/minio";
+import {
+  EQUIPMENT_ROW_COUNT,
+  MANPOWER_ROW_COUNT,
+} from "@/lib/template-defaults";
 
 Handlebars.registerHelper("eq", (a, b) => a === b);
 Handlebars.registerHelper("inc", (v) => Number(v) + 1);
@@ -36,7 +40,6 @@ function contentTypeFromKey(key: string) {
   return "image/jpeg";
 }
 
-/** Embed MinIO objects as data URLs so preview/PDF work behind tunnels. */
 async function resolveUrl(key?: string | null) {
   if (!key) return "";
   try {
@@ -49,19 +52,73 @@ async function resolveUrl(key?: string | null) {
   }
 }
 
-export async function buildDailyReportContext(report: ReportWithRelations) {
-  const [companyLogoUrl, clientLogoUrl, signatureUrl, ...photoUrls] =
-    await Promise.all([
-      resolveUrl(report.companyLogoKey),
-      resolveUrl(report.clientLogoKey),
-      resolveUrl(report.signatureObjectKey),
-      ...report.photos
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((p) => resolveUrl(p.objectKey)),
-    ]);
+async function resolveBuffer(key?: string | null) {
+  if (!key) return null;
+  try {
+    return await getObjectBuffer(key);
+  } catch (err) {
+    console.error("Failed to load image buffer", key, err);
+    return null;
+  }
+}
 
-  const manpower = [...report.manpower].sort((a, b) => a.sortOrder - b.sortOrder);
-  const equipment = [...report.equipment].sort((a, b) => a.sortOrder - b.sortOrder);
+function padManpower(rows: ReportWithRelations["manpower"], count: number) {
+  const out = rows.slice(0, count).map((r) => ({
+    name: r.name || "",
+    qualification: r.qualification || "",
+    workingHours: r.workingHours || "",
+    remarks: r.remarks || "",
+    extraJob: r.extraJob || "",
+  }));
+  while (out.length < count) {
+    out.push({
+      name: "",
+      qualification: "",
+      workingHours: "",
+      remarks: "",
+      extraJob: "",
+    });
+  }
+  return out;
+}
+
+function padEquipment(rows: ReportWithRelations["equipment"], count: number) {
+  const out = rows.slice(0, count).map((r) => ({
+    name: r.name || "",
+    quantity: r.quantity || "",
+  }));
+  while (out.length < count) {
+    out.push({ name: "", quantity: "" });
+  }
+  return out;
+}
+
+export async function buildDailyReportContext(report: ReportWithRelations) {
+  const photoKeys = [...report.photos].sort((a, b) => a.sortOrder - b.sortOrder);
+  const [
+    companyLogoUrl,
+    clientLogoUrl,
+    signatureUrl,
+    companyLogoBuf,
+    clientLogoBuf,
+    signatureBuf,
+    ...photoResults
+  ] = await Promise.all([
+    resolveUrl(report.companyLogoKey),
+    resolveUrl(report.clientLogoKey),
+    resolveUrl(report.signatureObjectKey),
+    resolveBuffer(report.companyLogoKey),
+    resolveBuffer(report.clientLogoKey),
+    resolveBuffer(report.signatureObjectKey),
+    ...photoKeys.map(async (p) => ({
+      url: await resolveUrl(p.objectKey),
+      buffer: await resolveBuffer(p.objectKey),
+      key: p.objectKey,
+    })),
+  ]);
+
+  const manpowerRaw = [...report.manpower].sort((a, b) => a.sortOrder - b.sortOrder);
+  const equipmentRaw = [...report.equipment].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return {
     projectNo: report.projectNo,
@@ -73,6 +130,8 @@ export async function buildDailyReportContext(report: ReportWithRelations) {
     clientName: report.clientName,
     companyLogoUrl,
     clientLogoUrl,
+    companyLogoBuf,
+    clientLogoBuf,
     arrivalTime: report.arrivalTime || "",
     leaveTime: report.leaveTime || "",
     workDescription: report.workDescription || "",
@@ -80,15 +139,25 @@ export async function buildDailyReportContext(report: ReportWithRelations) {
     notes: report.notes || "",
     workEvaluation: report.workEvaluation || "",
     activitiesNextShift: report.activitiesNextShift || "",
-    manpower,
-    totalManpower: manpower.length,
-    equipment,
-    photos: photoUrls.filter(Boolean).map((url, i) => ({ url, index: i + 1 })),
+    manpower: padManpower(manpowerRaw, MANPOWER_ROW_COUNT),
+    totalManpower: manpowerRaw.length,
+    equipment: padEquipment(equipmentRaw, EQUIPMENT_ROW_COUNT),
+    photos: photoResults
+      .filter((p) => p.url)
+      .map((p, i) => ({
+        url: p.url,
+        index: i + 1,
+        buffer: p.buffer,
+        key: p.key,
+      })),
     signerName: report.signerName || "",
     signatureUrl,
+    signatureBuf,
     signedDate: formatIdDate(report.signedDate || report.reportDate),
   };
 }
+
+export type DailyReportContext = Awaited<ReturnType<typeof buildDailyReportContext>>;
 
 export async function buildDeliveryNoteContext(note: DeliveryNote) {
   const signatureUrl = await resolveUrl(note.signatureKey);
@@ -127,4 +196,3 @@ ${body}
 </body>
 </html>`;
 }
-

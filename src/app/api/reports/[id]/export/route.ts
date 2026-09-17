@@ -7,7 +7,7 @@ import {
   type ReportWithRelations,
 } from "@/lib/render-template";
 import { htmlToPdf } from "@/lib/export/pdf";
-import { htmlToDocx } from "@/lib/export/docx";
+import { fillDailyReportDocx } from "@/lib/export/docx-from-sample";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -34,22 +34,23 @@ export async function GET(req: Request, { params }: Params) {
   }
 
   const context = await buildDailyReportContext(report as ReportWithRelations);
-  const html = renderTemplate(template, context);
-
-  if (format === "html") {
-    return new NextResponse(html, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-  }
 
   if (format === "docx") {
-    const buf = await htmlToDocx(html);
+    const buf = await fillDailyReportDocx(context);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "Content-Disposition": `attachment; filename="daily-report-${report.reportNo}.docx"`,
       },
+    });
+  }
+
+  const html = renderTemplate(template, context);
+
+  if (format === "html") {
+    return new NextResponse(html, {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 
