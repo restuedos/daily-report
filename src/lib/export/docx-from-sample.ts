@@ -3,6 +3,7 @@ import path from "path";
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import type { DailyReportContext } from "@/lib/render-template";
+import { formatActivityLines } from "@/lib/render-template";
 
 const W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
@@ -20,17 +21,42 @@ function esc(text: string) {
     .replace(/"/g, "&quot;");
 }
 
+/** Split activity text into numbered lines (same style as "Activities done this day"). */
+function splitActivityLines(text: string): string[] {
+  const formatted = formatActivityLines(text);
+  if (!formatted) return [""];
+  return formatted.split("\n");
+}
+
 function paraXml(
   text: string,
-  opts?: { bold?: boolean; center?: boolean; size?: number },
+  opts?: {
+    bold?: boolean;
+    center?: boolean;
+    size?: number;
+    /** Paragraph left indent in twips (1440 = 1"). */
+    indentTwips?: number;
+    /** Hanging indent in twips (wrap lines stay indented; first line pulls back). */
+    hangingTwips?: number;
+  },
 ) {
   const bold = opts?.bold ? "<w:b/><w:bCs/>" : "";
   const jc = opts?.center ? `<w:jc w:val="center"/>` : "";
+  let ind = "";
+  if (opts?.indentTwips != null || opts?.hangingTwips != null) {
+    const left = opts?.indentTwips ?? opts?.hangingTwips ?? 0;
+    const hang =
+      opts?.hangingTwips != null ? ` w:hanging="${opts.hangingTwips}"` : "";
+    ind = `<w:ind w:left="${left}"${hang}/>`;
+  }
   const size = opts?.size ?? 18;
+  // rPr on both pPr (paragraph mark — what LibreOffice shows for empty cells)
+  // and the run so filled/empty cells share Arial 9pt.
+  const rPr = `${bold}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>`;
   return `<w:p>
-  <w:pPr>${jc}<w:spacing w:before="0" w:after="0"/></w:pPr>
+  <w:pPr>${jc}${ind}<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:rPr>${rPr}</w:rPr></w:pPr>
   <w:r>
-    <w:rPr>${bold}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/></w:rPr>
+    <w:rPr>${rPr}</w:rPr>
     <w:t xml:space="preserve">${esc(text)}</w:t>
   </w:r>
 </w:p>`;
@@ -63,15 +89,29 @@ function hasDrawing(el: any) {
 function writeTextKeepDrawings(
   doc: any,
   cell: any,
-  paragraphs: Array<{ text: string; bold?: boolean; center?: boolean; size?: number }>,
-  opts?: { drawingsFirst?: boolean },
+  paragraphs: Array<{
+    text: string;
+    bold?: boolean;
+    center?: boolean;
+    size?: number;
+    indentTwips?: number;
+    hangingTwips?: number;
+  }>,
+  opts?: {
+    drawingsFirst?: boolean;
+    keepDrawings?: boolean;
+    vAlign?: "center" | "top" | "bottom";
+    /** Hide specific cell borders (e.g. signature meta top). */
+    borders?: { top?: "nil"; bottom?: "nil"; left?: "nil"; right?: "nil" };
+  },
 ) {
+  const keepDrawings = opts?.keepDrawings !== false;
   const drawings: any[] = [];
   for (const child of [...cell.childNodes]) {
     if (child.nodeType !== 1) continue;
     const el = child as any;
     if (el.localName !== "p") continue;
-    if (hasDrawing(el)) drawings.push(el.cloneNode(true) as any);
+    if (keepDrawings && hasDrawing(el)) drawings.push(el.cloneNode(true) as any);
     cell.removeChild(el);
   }
 
@@ -94,15 +134,188 @@ function writeTextKeepDrawings(
     appendText();
     for (const d of drawings) cell.appendChild(d);
   }
+
+  if (opts?.vAlign) setCellVAlign(doc, cell, opts.vAlign);
+  if (opts?.borders) setCellBorders(doc, cell, opts.borders);
 }
 
-function replaceMedia(
+function setCellBorders(
+  doc: any,
+  cell: any,
+  borders: { top?: "nil"; bottom?: "nil"; left?: "nil"; right?: "nil" },
+) {
+  let tcPr: any = null;
+  for (const child of Array.from(cell.childNodes)) {
+    if ((child as any).nodeType === 1 && (child as any).localName === "tcPr") {
+      tcPr = child as any;
+      break;
+    }
+  }
+  if (!tcPr) {
+    const frag = new DOMParser().parseFromString(
+      `<w:tc xmlns:w="${W_NS}"><w:tcPr/></w:tc>`,
+      "application/xml",
+    );
+    const root = frag.documentElement;
+    if (!root) return;
+    tcPr = doc.importNode(root.getElementsByTagName("w:tcPr")[0], true);
+    cell.insertBefore(tcPr, cell.firstChild);
+  }
+
+  let tcBorders: any = null;
+  const existing = tcPr.getElementsByTagName("w:tcBorders");
+  if (existing.length) {
+    tcBorders = existing[0];
+  } else {
+    const frag = new DOMParser().parseFromString(
+      `<w:tcPr xmlns:w="${W_NS}"><w:tcBorders/></w:tcPr>`,
+      "application/xml",
+    );
+    const root = frag.documentElement;
+    if (!root) return;
+    tcBorders = doc.importNode(root.getElementsByTagName("w:tcBorders")[0], true);
+    tcPr.appendChild(tcBorders);
+  }
+
+  for (const side of ["top", "left", "bottom", "right"] as const) {
+    if (!borders[side]) continue;
+    const tag = side;
+    const found = tcBorders.getElementsByTagName(`w:${tag}`);
+    const xml = `<w:tcBorders xmlns:w="${W_NS}"><w:${tag} w:val="nil" w:sz="0" w:space="0" w:color="auto"/></w:tcBorders>`;
+    const frag = new DOMParser().parseFromString(xml, "application/xml");
+    const root = frag.documentElement;
+    if (!root) continue;
+    const node = doc.importNode(root.getElementsByTagName(`w:${tag}`)[0], true);
+    if (found.length) tcBorders.replaceChild(node, found[0]);
+    else tcBorders.appendChild(node);
+  }
+}
+
+function setCellVAlign(
+  doc: any,
+  cell: any,
+  val: "center" | "top" | "bottom",
+) {
+  let tcPr: any = null;
+  for (const child of Array.from(cell.childNodes)) {
+    if ((child as any).nodeType === 1 && (child as any).localName === "tcPr") {
+      tcPr = child as any;
+      break;
+    }
+  }
+  if (!tcPr) {
+    const frag = new DOMParser().parseFromString(
+      `<w:tc xmlns:w="${W_NS}"><w:tcPr/></w:tc>`,
+      "application/xml",
+    );
+    const root = frag.documentElement;
+    if (!root) return;
+    tcPr = doc.importNode(root.getElementsByTagName("w:tcPr")[0], true);
+    cell.insertBefore(tcPr, cell.firstChild);
+  }
+  const existing = tcPr.getElementsByTagName("w:vAlign");
+  if (existing.length) {
+    existing[0].setAttribute("w:val", val);
+  } else {
+    const frag = new DOMParser().parseFromString(
+      `<w:tcPr xmlns:w="${W_NS}"><w:vAlign w:val="${val}"/></w:tcPr>`,
+      "application/xml",
+    );
+    const root = frag.documentElement;
+    if (!root) return;
+    tcPr.appendChild(
+      doc.importNode(root.getElementsByTagName("w:vAlign")[0], true),
+    );
+  }
+}
+
+function detectImageExt(buffer: Buffer): "jpeg" | "png" | "gif" | "webp" | null {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "jpeg";
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return "png";
+  }
+  if (
+    buffer.length >= 6 &&
+    buffer[0] === 0x47 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46
+  ) {
+    return "gif";
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "webp";
+  }
+  return null;
+}
+
+const CONTENT_TYPE_BY_EXT: Record<string, string> = {
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+/**
+ * Replace a media part. If the buffer format differs from the sample filename
+ * extension (e.g. PNG written into image1.jpeg), rename the part and update
+ * document relationships + content types so Word/LibreOffice can render it.
+ */
+async function replaceMedia(
   zip: JSZip,
   name: string,
   buffer: Buffer | null | undefined,
 ) {
   if (!buffer?.length) return;
-  zip.file(`word/media/${name}`, buffer);
+
+  const currentExt = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1).toLowerCase() : "";
+  const detected = detectImageExt(buffer);
+  const finalExt =
+    detected ?? (currentExt === "jpg" ? "jpeg" : currentExt || "jpeg");
+  const base = name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name;
+  const finalName = `${base}.${finalExt === "jpg" ? "jpeg" : finalExt}`;
+
+  if (finalName !== name) {
+    zip.remove(`word/media/${name}`);
+  }
+  zip.file(`word/media/${finalName}`, buffer);
+
+  if (finalName === name) return;
+
+  const relsPath = "word/_rels/document.xml.rels";
+  const relsFile = zip.file(relsPath);
+  if (relsFile) {
+    let rels = await relsFile.async("string");
+    rels = rels.replaceAll(`media/${name}`, `media/${finalName}`);
+    zip.file(relsPath, rels);
+  }
+
+  const typesPath = "[Content_Types].xml";
+  const typesFile = zip.file(typesPath);
+  if (typesFile) {
+    let types = await typesFile.async("string");
+    const extAttr = finalExt === "jpg" ? "jpeg" : finalExt;
+    const contentType = CONTENT_TYPE_BY_EXT[extAttr] ?? `image/${extAttr}`;
+    if (!types.includes(`Extension="${extAttr}"`)) {
+      types = types.replace(
+        /<Types([^>]*)>/,
+        `<Types$1><Default Extension="${extAttr}" ContentType="${contentType}"/>`,
+      );
+    }
+    zip.file(typesPath, types);
+  }
 }
 
 /**
@@ -113,25 +326,45 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
   const sample = await fs.readFile(SAMPLE_DOCX);
   const zip = await JSZip.loadAsync(sample);
 
-  replaceMedia(zip, "image1.jpeg", ctx.clientLogoBuf);
-  replaceMedia(zip, "image2.png", ctx.companyLogoBuf);
   const photoBufs = ctx.photos.map((p) => p.buffer).filter(Boolean) as Buffer[];
-  // 1x1 pixel JPEG — blanks unused documentation slots so sample photos don't linger
+  // Tiny placeholders — wipe sample media when the report has no upload
   const blankJpeg = Buffer.from(
     "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAGcP//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bf//Z",
     "base64",
   );
-  [
+  const blankPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const hasClientLogo = Boolean(ctx.clientLogoBuf?.length);
+  const hasCompanyLogo = Boolean(ctx.companyLogoBuf?.length);
+  const hasSignature = Boolean(ctx.signatureBuf?.length);
+
+  await replaceMedia(
+    zip,
+    "image1.jpeg",
+    hasClientLogo ? ctx.clientLogoBuf : blankJpeg,
+  );
+  await replaceMedia(
+    zip,
+    "image2.png",
+    hasCompanyLogo ? ctx.companyLogoBuf : blankPng,
+  );
+  for (const [i, file] of [
     "image3.jpeg",
     "image4.jpeg",
     "image5.jpeg",
     "image6.jpeg",
     "image7.jpeg",
     "image8.jpeg",
-  ].forEach((file, i) => {
-    replaceMedia(zip, file, photoBufs[i] || blankJpeg);
-  });
-  replaceMedia(zip, "image9.png", ctx.signatureBuf);
+  ].entries()) {
+    await replaceMedia(zip, file, photoBufs[i] || blankJpeg);
+  }
+  await replaceMedia(
+    zip,
+    "image9.png",
+    hasSignature ? ctx.signatureBuf : blankPng,
+  );
 
   const xmlIn = await zip.file("word/document.xml")!.async("string");
   const doc = new DOMParser().parseFromString(xmlIn, "application/xml");
@@ -148,18 +381,36 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
     { text: ctx.projectName, bold: true, center: true, size: 22 },
   ]);
 
-  writeTextKeepDrawings(doc, cellAt(rows[2], 0), [
-    { text: ctx.clientName, bold: true, center: true, size: 18 },
-  ]);
+  // Logo cells (row 0) — drop sample drawings when nothing was uploaded
+  if (!hasClientLogo) {
+    writeTextKeepDrawings(doc, cellAt(rows[0], 0), [{ text: "", size: 18 }], {
+      keepDrawings: false,
+    });
+  }
+  if (!hasCompanyLogo) {
+    writeTextKeepDrawings(doc, cellAt(rows[0], 2), [{ text: "", size: 18 }], {
+      keepDrawings: false,
+    });
+  }
+
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[2], 0),
+    [{ text: ctx.clientName, bold: true, center: true, size: 18 }],
+    { vAlign: "center" },
+  );
   writeTextKeepDrawings(doc, cellAt(rows[2], 1), [
     { text: `Date: ${ctx.reportDate}`, bold: true, center: true, size: 18 },
   ]);
   writeTextKeepDrawings(doc, cellAt(rows[2], 2), [
     { text: `DAILY REPORT No: ${ctx.reportNo}`, bold: true, center: true, size: 18 },
   ]);
-  writeTextKeepDrawings(doc, cellAt(rows[2], 3), [
-    { text: ctx.companyName, bold: true, center: true, size: 18 },
-  ]);
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[2], 3),
+    [{ text: ctx.companyName, bold: true, center: true, size: 18 }],
+    { vAlign: "center" },
+  );
   writeTextKeepDrawings(doc, cellAt(rows[3], 2), [
     { text: `WEEK No: ${ctx.weekNo}`, bold: true, center: true, size: 18 },
   ]);
@@ -171,9 +422,11 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
     writeTextKeepDrawings(doc, cellAt(row, 0), [
       { text: filled ? `${i + 1}.` : "", center: true, size: 18 },
     ]);
-    writeTextKeepDrawings(doc, cellAt(row, 1), [{ text: m?.name || "", size: 18 }]);
+    writeTextKeepDrawings(doc, cellAt(row, 1), [
+      { text: m?.name ? ` ${m.name}` : "", size: 18 },
+    ]);
     writeTextKeepDrawings(doc, cellAt(row, 2), [
-      { text: m?.qualification || "", size: 18 },
+      { text: m?.qualification ? ` ${m.qualification}` : "", size: 18 },
     ]);
     writeTextKeepDrawings(doc, cellAt(row, 3), [
       { text: m?.workingHours || "", center: true, size: 18 },
@@ -198,19 +451,24 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
     writeTextKeepDrawings(doc, cellAt(row, 0), [
       { text: filled ? `${i + 1}.` : "", center: true, size: 18 },
     ]);
-    writeTextKeepDrawings(doc, cellAt(row, 1), [{ text: e?.name || "", size: 18 }]);
+    writeTextKeepDrawings(doc, cellAt(row, 1), [
+      { text: e?.name ? ` ${e.name}` : "", size: 18 },
+    ]);
     writeTextKeepDrawings(doc, cellAt(row, 2), [
       { text: e?.quantity || "", center: true, size: 18 },
     ]);
   }
 
   writeTextKeepDrawings(doc, cellAt(rows[25], 0), [
-    { text: "Work Description:", bold: true, size: 18 },
+    {
+      text: ctx.workDescription?.trim()
+        ? `Work Description: ${ctx.workDescription.trim()}`
+        : "Work Description:",
+      bold: true,
+      size: 18,
+    },
   ]);
   writeTextKeepDrawings(doc, cellAt(rows[26], 0), [
-    ...(ctx.workDescription
-      ? [{ text: ctx.workDescription, bold: true as const, size: 18 }]
-      : []),
     {
       text: `${ctx.arrivalTime}: Arrival to the site`,
       bold: true,
@@ -221,17 +479,39 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
     { text: "Activities done this day:", bold: true, size: 18 },
   ]);
 
-  const activityParas: Array<{ text: string; bold?: boolean; size?: number }> = [];
-  for (const line of (ctx.activitiesDone || "").split(/\r?\n/)) {
-    activityParas.push({ text: line, size: 18 });
+  const activityParas: Array<{
+    text: string;
+    bold?: boolean;
+    size?: number;
+    indentTwips?: number;
+    hangingTwips?: number;
+  }> = [];
+  for (const line of splitActivityLines(ctx.activitiesDone || "")) {
+    if (!line.trim()) {
+      activityParas.push({ text: "", size: 18 });
+      continue;
+    }
+    // Hanging indent (~0.25"): wrapped lines sit under the text, not under "1."
+    activityParas.push({
+      text: line,
+      size: 18,
+      indentTwips: 360,
+      hangingTwips: 200,
+    });
   }
   activityParas.push({ text: "", size: 18 });
-  activityParas.push({ text: `   Note: ${ctx.notes || ""}`, bold: true, size: 18 });
+  activityParas.push({
+    text: `Note: ${ctx.notes || ""}`,
+    bold: true,
+    size: 18,
+    indentTwips: 200,
+  });
   activityParas.push({ text: "", size: 18 });
   activityParas.push({
     text: `Work Evaluation: ${ctx.workEvaluation || ""}`,
     bold: true,
     size: 18,
+    indentTwips: 200,
   });
   writeTextKeepDrawings(doc, cellAt(rows[28], 0), activityParas);
   writeTextKeepDrawings(doc, cellAt(rows[28], 1), [
@@ -241,33 +521,57 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
   writeTextKeepDrawings(doc, cellAt(rows[29], 0), [
     { text: "Activities planned for next Shift:", bold: true, size: 18 },
   ]);
-  writeTextKeepDrawings(doc, cellAt(rows[30], 0), [
-    { text: ctx.activitiesNextShift || "", size: 18 },
-  ]);
+  const nextShiftParas = splitActivityLines(ctx.activitiesNextShift || "").map(
+    (line) => ({
+      text: line.trim() ? line : "",
+      size: 18,
+      // 0.25" left + hanging so wrap lines sit under the text
+      indentTwips: 560,
+      hangingTwips: 200,
+    }),
+  );
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[30], 0),
+    nextShiftParas.length
+      ? nextShiftParas
+      : [{ text: "", size: 18, indentTwips: 560, hangingTwips: 200 }],
+    { vAlign: "center" },
+  );
   writeTextKeepDrawings(doc, cellAt(rows[31], 0), [
     { text: `${ctx.leaveTime}: Leave site`, bold: true, size: 18 },
   ]);
 
-  writeTextKeepDrawings(doc, cellAt(rows[32], 0), [
-    { text: ctx.companyName, bold: true, center: true, size: 18 },
-  ]);
-  writeTextKeepDrawings(doc, cellAt(rows[32], 1), [
-    { text: ctx.clientName, bold: true, center: true, size: 18 },
-  ]);
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[32], 0),
+    [{ text: ctx.companyName, bold: true, center: true, size: 18 }],
+    { vAlign: "center" },
+  );
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[32], 1),
+    [{ text: ctx.clientName, bold: true, center: true, size: 18 }],
+    { vAlign: "center" },
+  );
 
   // R33 = signature image box only (separate from name/date)
   writeTextKeepDrawings(doc, cellAt(rows[33], 0), [{ text: "", size: 18 }], {
     drawingsFirst: true,
+    keepDrawings: hasSignature,
+    borders: { bottom: "nil" },
   });
-  writeTextKeepDrawings(doc, cellAt(rows[33], 1), [{ text: "", size: 18 }]);
+  writeTextKeepDrawings(doc, cellAt(rows[33], 1), [{ text: "", size: 18 }], {
+    borders: { bottom: "nil" },
+  });
 
   // Insert meta row under the signature pad so name/date are in their own boxes
   const signPadRow = rows[33];
   const metaRow = signPadRow.cloneNode(true) as any;
   // Clear drawings from cloned meta row cells
   for (const cell of [cellAt(metaRow, 0), cellAt(metaRow, 1)]) {
-    for (const child of [...Array.from(cell.childNodes)]) {
-      if (child.nodeType === 1 && (child as any).localName === "p" && hasDrawing(child as any)) {
+    for (const child of [...Array.from(cell.childNodes)] as any[]) {
+      if (child.nodeType === 1 && child.localName === "p" && hasDrawing(child)) {
         cell.removeChild(child);
       }
     }
@@ -289,25 +593,61 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
 
   signPadRow.parentNode.insertBefore(metaRow, signPadRow.nextSibling);
 
-  writeTextKeepDrawings(doc, cellAt(metaRow, 0), [
-    {
-      text: `Signature: ${ctx.signerName}${ctx.signedDate ? ` : ${ctx.signedDate}` : ""}`,
-      size: 18,
-    },
-  ]);
-  // Keep client Signature + Date on one horizontal line
-  writeTextKeepDrawings(doc, cellAt(metaRow, 1), [
-    {
-      text: "Signature: ______________    Date: ______________",
-      size: 18,
-    },
-  ]);
+  writeTextKeepDrawings(
+    doc,
+    cellAt(metaRow, 0),
+    [
+      {
+        text: `Signature: ${ctx.signerName}${ctx.signedDate ? ` : ${ctx.signedDate}` : ""}`,
+        size: 18,
+        center: true,
+      },
+    ],
+    { vAlign: "center", borders: { top: "nil" } },
+  );
+  writeTextKeepDrawings(
+    doc,
+    cellAt(metaRow, 1),
+    [
+      {
+        text: "Signature: ______________    Date: ______________",
+        size: 18,
+        center: true,
+      },
+    ],
+    { vAlign: "center", borders: { top: "nil" } },
+  );
 
   let xml = new XMLSerializer().serializeToString(doc);
   if (!xml.startsWith("<?xml")) {
     xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${xml}`;
   }
   zip.file("word/document.xml", xml);
+
+  // Document defaults → Arial 9pt so untouched / empty paragraph marks match filled cells
+  const stylesPath = "word/styles.xml";
+  const stylesFile = zip.file(stylesPath);
+  if (stylesFile) {
+    let styles = await stylesFile.async("string");
+    const defaultRPr = `<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>`;
+    if (/<w:rPrDefault>\s*<w:rPr>[\s\S]*?<\/w:rPr>\s*<\/w:rPrDefault>/.test(styles)) {
+      styles = styles.replace(
+        /<w:rPrDefault>\s*<w:rPr>[\s\S]*?<\/w:rPr>\s*<\/w:rPrDefault>/,
+        `<w:rPrDefault>${defaultRPr}</w:rPrDefault>`,
+      );
+    } else if (styles.includes("<w:docDefaults>")) {
+      styles = styles.replace(
+        "<w:docDefaults>",
+        `<w:docDefaults><w:rPrDefault>${defaultRPr}</w:rPrDefault>`,
+      );
+    } else {
+      styles = styles.replace(
+        /<w:styles([^>]*)>/,
+        `<w:styles$1><w:docDefaults><w:rPrDefault>${defaultRPr}</w:rPrDefault></w:docDefaults>`,
+      );
+    }
+    zip.file(stylesPath, styles);
+  }
 
   return Buffer.from(
     await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
