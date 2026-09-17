@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getObjectBuffer } from "@/lib/minio";
+import { getObjectBuffer } from "@/lib/storage";
 
 type Params = { params: Promise<{ key: string[] }> };
 

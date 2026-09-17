@@ -39,6 +39,10 @@ yarn-error.log*
 /certs/local/*.pem
 !.gitkeep
 
+# local file uploads (branch `dev` filesystem storage)
+/storage/**
+!/storage/.gitkeep
+
 # IDE / office locks
 .~lock.*
 

@@ -1,33 +1,42 @@
-# Daily Report
+# Daily Report (`dev` branch)
 
-Aplikasi web Daily Report & Surat Jalan: form terstruktur, template HTML di database, upload MinIO, export PDF/DOCX.
+Versi lokal tanpa Docker, tanpa MinIO, tanpa PostgreSQL.
+
+- **Database:** MySQL / MariaDB lokal
+- **Storage:** folder `storage/` di project
+- **App:** Next.js di host
+
+> Branch `main` tetap memakai PostgreSQL + MinIO + Docker. Perubahan stack ini hanya di `dev`.
 
 ## Stack
 
 - Next.js (App Router) + TypeScript
-- PostgreSQL + Prisma
+- MySQL + Prisma
 - Auth.js (credentials) + role `USER` / `ADMIN`
-- MinIO (S3)
-- Docker Compose (local / prod)
+- Local filesystem untuk logo, dokumentasi, tanda tangan
 
-## Cara menjalankan (local)
+## Cara menjalankan
 
-### 1. Clone & install
+### 1. Siapkan MySQL
+
+```bash
+sudo service mariadb start   # atau: sudo systemctl start mysql
+sudo mysql -e "CREATE DATABASE IF NOT EXISTS dailyreport CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+sudo mysql -e "CREATE USER IF NOT EXISTS 'dailyreport'@'localhost' IDENTIFIED BY 'dailyreport';"
+sudo mysql -e "GRANT ALL PRIVILEGES ON dailyreport.* TO 'dailyreport'@'localhost'; FLUSH PRIVILEGES;"
+```
+
+### 2. Clone, install, env
 
 ```bash
 git clone git@github.com:restuedos/daily-report.git
 cd daily-report
+git checkout dev
 npm install
 cp .env.local.example .env.local
 ```
 
-Sesuaikan secret/password di `.env.local` bila perlu.
-
-### 2. Jalankan PostgreSQL + MinIO
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local up -d db minio minio-init
-```
+Sesuaikan `DATABASE_URL` / `STORAGE_DIR` bila perlu.
 
 ### 3. Migrasi & seed
 
@@ -44,42 +53,12 @@ npm run dev
 
 Buka [http://localhost:3000](http://localhost:3000).
 
-Akun admin awal diambil dari env (`ADMIN_EMAIL` / `ADMIN_PASSWORD` di `.env.local.example`).
+Akun admin awal dari env: `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
-MinIO console: [http://localhost:19001](http://localhost:19001) (default `minioadmin` / `minioadmin`).
+Upload disimpan di `./storage` (diabaikan git kecuali `.gitkeep`).
 
-### Alternatif: full stack Docker + HTTPS lokal
+## Catatan
 
-```bash
-cp .env.local.example .env.local
-./scripts/mkcert-init.sh daily-report.localhost
-# tambahkan 127.0.0.1 daily-report.localhost ke /etc/hosts
-./scripts/dev-up.sh
-```
-
-Buka `https://daily-report.localhost`.
-
-## Production
-
-```bash
-cp .env.prod.example .env.prod
-# isi DOMAIN, CERTBOT_EMAIL, secrets
-./scripts/prod-up.sh
-./scripts/certbot-init.sh
-```
-
-Pisahkan project Compose local vs prod, misalnya:
-
-```bash
-COMPOSE_PROJECT_NAME=dailyreport-local ./scripts/dev-up.sh
-COMPOSE_PROJECT_NAME=dailyreport-prod ./scripts/prod-up.sh
-```
-
-## Fitur
-
-- Register / login, autosave report, duplikat report
-- Template Editor (admin): HTML+CSS Handlebars, preview, aktifkan
-- Export PDF (Puppeteer) & DOCX
-- Surat Jalan dengan template terpisah
-- Admin: riwayat login
-- Sample dokumen di `docs/`
+- File dilayani lewat `/api/files/...` (perlu login).
+- Export DOCX tetap memakai sample Word di `docs/`.
+- Script Docker (`docker-compose*`, `scripts/dev-up.sh`, dll.) tidak dipakai di branch ini.

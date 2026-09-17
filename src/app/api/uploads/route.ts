@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { uploadObject } from "@/lib/minio";
+import { uploadObject } from "@/lib/storage";
 
 export async function POST(req: Request) {
   const session = await auth();

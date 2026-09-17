@@ -2,7 +2,7 @@ import Handlebars from "handlebars";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import type { DailyReport, DeliveryNote, DocumentTemplate } from "@prisma/client";
-import { getObjectBuffer } from "@/lib/minio";
+import { getObjectBuffer } from "@/lib/storage";
 import {
   EQUIPMENT_ROW_COUNT,
   MANPOWER_ROW_COUNT,
