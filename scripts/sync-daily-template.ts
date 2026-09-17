@@ -8,6 +8,10 @@ import {
 const prisma = new PrismaClient();
 
 async function main() {
+  const url = process.env.DATABASE_URL || "";
+  const hostHint = url.replace(/:[^:@/]+@/, ":***@").slice(0, 80);
+  console.log(`Syncing daily template via DATABASE_URL=${hostHint || "(missing)"}`);
+
   const active = await prisma.documentTemplate.findFirst({
     where: { type: TemplateType.DAILY_REPORT, isActive: true },
   });

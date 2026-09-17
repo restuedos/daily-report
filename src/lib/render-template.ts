@@ -40,6 +40,32 @@ function contentTypeFromKey(key: string) {
   return "image/jpeg";
 }
 
+/** Split "1. a 2. b" (or newline-separated) into one item per line for PDF/DOCX. */
+export function formatActivityLines(text: string | null | undefined): string {
+  const raw = String(text ?? "").trim();
+  if (!raw) return "";
+  const byNl = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (byNl.length > 1) return byNl.join("\n");
+  const parts = raw
+    .split(/(?=\d+\.\s+)/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length > 1 ? parts.join("\n") : raw;
+}
+
+/** Plain items without leading `1.` — for HTML `<ol><li>`. */
+export function parseActivityItems(text: string | null | undefined): string[] {
+  const formatted = formatActivityLines(text);
+  if (!formatted) return [];
+  return formatted
+    .split("\n")
+    .map((l) => l.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
+}
+
 async function resolveUrl(key?: string | null) {
   if (!key) return "";
   try {
@@ -135,10 +161,12 @@ export async function buildDailyReportContext(report: ReportWithRelations) {
     arrivalTime: report.arrivalTime || "",
     leaveTime: report.leaveTime || "",
     workDescription: report.workDescription || "",
-    activitiesDone: report.activitiesDone || "",
+    activitiesDone: formatActivityLines(report.activitiesDone),
+    activitiesDoneItems: parseActivityItems(report.activitiesDone),
     notes: report.notes || "",
     workEvaluation: report.workEvaluation || "",
-    activitiesNextShift: report.activitiesNextShift || "",
+    activitiesNextShift: formatActivityLines(report.activitiesNextShift),
+    activitiesNextShiftItems: parseActivityItems(report.activitiesNextShift),
     manpower: padManpower(manpowerRaw, MANPOWER_ROW_COUNT),
     totalManpower: manpowerRaw.length,
     equipment: padEquipment(equipmentRaw, EQUIPMENT_ROW_COUNT),

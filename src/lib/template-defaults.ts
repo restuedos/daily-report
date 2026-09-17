@@ -94,8 +94,8 @@ export const DAILY_REPORT_HTML = `
     {{#each manpower}}
     <tr class="data">
       <td class="center">{{#if name}}{{inc @index}}.{{else}}&nbsp;{{/if}}</td>
-      <td colspan="2">{{name}}</td>
-      <td colspan="2">{{qualification}}</td>
+      <td colspan="2" class="pad-l">{{name}}</td>
+      <td colspan="2" class="pad-l">{{qualification}}</td>
       <td class="center" colspan="2">{{workingHours}}</td>
       <td>{{remarks}}</td>
       <td>{{extraJob}}</td>
@@ -118,20 +118,28 @@ export const DAILY_REPORT_HTML = `
     {{#each equipment}}
     <tr class="data">
       <td class="center">{{#if name}}{{inc @index}}.{{else}}&nbsp;{{/if}}</td>
-      <td colspan="4">{{name}}</td>
+      <td colspan="4" class="pad-l">{{name}}</td>
       <td class="center" colspan="2">{{quantity}}</td>
       <td>&nbsp;</td>
       <td>&nbsp;</td>
     </tr>
     {{/each}}
 
-    <tr><td class="section" colspan="9">Work Description:</td></tr>
-    <tr><td class="body" colspan="9">{{workDescription}}</td></tr>
+    <tr>
+      <td class="section work-desc-row" colspan="9">
+        <span class="section-label">Work Description:</span>
+        <span class="work-desc-inline">{{workDescription}}</span>
+      </td>
+    </tr>
     <tr><td class="time-line" colspan="9">{{arrivalTime}}: Arrival to the site</td></tr>
     <tr><td class="section" colspan="9">Activities done this day:</td></tr>
     <tr class="r-activities">
       <td class="activity" colspan="4">
-        <div class="pre">{{activitiesDone}}</div>
+        <ol class="activity-ol">
+          {{#each activitiesDoneItems}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ol>
         <div class="note-line">Note: {{notes}}</div>
         <div class="note-line">Work Evaluation: {{workEvaluation}}</div>
       </td>
@@ -145,7 +153,15 @@ export const DAILY_REPORT_HTML = `
       </td>
     </tr>
     <tr><td class="section" colspan="9">Activities planned for next Shift:</td></tr>
-    <tr class="r-next"><td class="body" colspan="9">{{activitiesNextShift}}</td></tr>
+    <tr class="r-next">
+      <td class="next-shift" colspan="9">
+        <ol class="activity-ol next-ol">
+          {{#each activitiesNextShiftItems}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ol>
+      </td>
+    </tr>
     <tr><td class="time-line" colspan="9">{{leaveTime}}: Leave site</td></tr>
 
     <tr class="r-sign-head">
@@ -264,6 +280,11 @@ col.c8 { width: 20.24%; }
   font-size: 9pt;
   text-transform: uppercase;
   padding: 4px !important;
+  vertical-align: middle !important;
+}
+
+.r-sign-head td.party {
+  vertical-align: middle !important;
 }
 
 .meta {
@@ -278,37 +299,92 @@ col.c8 { width: 20.24%; }
   font-weight: 700;
   font-size: 9pt;
   text-align: center;
-  height: 18px;
+  height: 14px;
+  padding: 1px 3px !important;
 }
 
-.data td { height: 17px; font-size: 9pt; }
+.data td {
+  height: 11px;
+  font-size: 8.5pt;
+  padding: 0 3px !important;
+  line-height: 1.15;
+}
+
+.data td.pad-l {
+  padding-left: 8px !important;
+  text-align: left;
+}
 
 .total {
   font-weight: 700;
   text-align: center;
 }
 
+.total-row td {
+  height: 13px;
+  padding: 1px 3px !important;
+}
+
 .section {
   font-weight: 700;
-  height: 17px;
+  height: 14px;
+  padding: 1px 4px !important;
+}
+
+.work-desc-row {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.section-label { font-weight: 700; }
+.work-desc-inline {
+  font-weight: 700;
+  margin-left: 0.4em;
+  white-space: normal;
 }
 
 .body {
   white-space: pre-wrap;
   vertical-align: top !important;
-  min-height: 14px;
+  min-height: 12px;
+  padding: 2px 4px 2px 10px !important;
 }
+.body.indent { padding-left: 12px !important; }
 
-.time-line { font-weight: 700; height: 17px; }
+.time-line { font-weight: 700; height: 14px; padding: 1px 4px !important; }
 
-.r-activities td { height: 210px; vertical-align: top !important; }
+.r-activities td {
+  height: auto;
+  min-height: 150px;
+  vertical-align: top !important;
+}
 
 .activity {
   vertical-align: top !important;
   padding: 4px 6px !important;
 }
-.pre { white-space: pre-wrap; min-height: 4.5em; }
-.note-line { margin-top: 10px; font-weight: 700; }
+/* Native ordered list → correct hanging wrap under the text */
+.activity-ol {
+  margin: 0;
+  padding-left: 1.35em;
+  min-height: 3em;
+  list-style-type: decimal;
+  list-style-position: outside;
+}
+.activity-ol li {
+  margin: 0 0 2px;
+  padding-left: 0.15em;
+  white-space: normal;
+}
+.activity-ol.next-ol {
+  padding-left: calc(0.25in + 1.1em);
+  min-height: 0;
+}
+.note-line {
+  margin-top: 8px;
+  font-weight: 700;
+  padding-left: 12px;
+}
 
 .docs {
   vertical-align: top !important;
@@ -323,21 +399,33 @@ col.c8 { width: 20.24%; }
   align-content: flex-start;
 }
 .photos img {
-  width: 88px;
-  height: 88px;
+  /* Exactly 3 per row; force square like DOCX documentation thumbnails */
+  width: calc((100% - 8px) / 3);
+  aspect-ratio: 1 / 1;
+  height: auto;
   object-fit: cover;
   border: 1px solid #444;
+  box-sizing: border-box;
 }
 
-.r-next td { height: 48px; vertical-align: top !important; }
+.r-next td {
+  min-height: 36px;
+  height: auto;
+  vertical-align: middle !important;
+}
+.r-next td.next-shift {
+  padding: 4px 6px !important;
+  vertical-align: middle !important;
+}
 
-.r-sign-head td { height: 28px; }
+.r-sign-head td { height: 28px; vertical-align: middle !important; }
 
 .r-sign-pad td.sign-box {
   height: 64px;
   vertical-align: middle !important;
   text-align: center;
   padding: 6px !important;
+  border-bottom: none !important;
 }
 
 .sig {
@@ -351,9 +439,10 @@ col.c8 { width: 20.24%; }
 .r-sign-meta td.sign-meta {
   height: 28px;
   vertical-align: middle !important;
-  text-align: left;
+  text-align: center !important;
   padding: 4px 6px !important;
   font-size: 9pt;
+  border-top: none !important;
 }
 
 .client-meta {
