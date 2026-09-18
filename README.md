@@ -57,6 +57,48 @@ Akun admin awal dari env: `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
 Upload disimpan di `./storage` (diabaikan git kecuali `.gitkeep`).
 
+## Tunneling (demo publik, branch `dev` saja)
+
+Pakai Cloudflare quick tunnel agar teman bisa buka app dari internet tanpa deploy. Hanya relevan di branch `dev` (local MySQL + `storage/`).
+
+### 1. Jalankan app
+
+```bash
+git checkout dev
+npm run dev -- --hostname 127.0.0.1 --port 3000
+```
+
+### 2. Buka tunnel (terminal lain)
+
+```bash
+npx --yes cloudflared tunnel --url http://127.0.0.1:3000
+```
+
+Salin URL publik yang muncul, misalnya `https://xxxx.trycloudflare.com`.
+
+### 3. Samakan Auth URL
+
+Di `.env.local` (dan `.env` jika dipakai), set URL tunnel:
+
+```bash
+NEXTAUTH_URL=https://xxxx.trycloudflare.com
+APP_URL=https://xxxx.trycloudflare.com
+AUTH_URL=https://xxxx.trycloudflare.com
+AUTH_TRUST_HOST=true
+```
+
+Lalu **restart** `npm run dev` agar env terbaca.
+
+`next.config.ts` sudah mengizinkan HMR dari `**.trycloudflare.com` (`allowedDevOrigins`), jadi form/Enter tidak perlu full reload.
+
+### 4. Bagikan & hentikan
+
+Bagikan URL `https://xxxx.trycloudflare.com` ke teman. Login pakai akun admin dari env.
+
+Untuk menghentikan: `Ctrl+C` di terminal tunnel (dan app jika perlu). Setelah demo, kembalikan `NEXTAUTH_URL` / `APP_URL` ke `http://localhost:3000`.
+
+> URL quick tunnel berubah setiap kali dijalankan ulang. Jangan commit URL tunnel ke repo.
+
 ## Catatan
 
 - File dilayani lewat `/api/files/...` (perlu login).
