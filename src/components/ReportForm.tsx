@@ -55,8 +55,8 @@ const empty: ReportFormState = {
   clientId: "",
   clientName: "",
   clientLogoKey: "",
-  arrivalTime: "08:00 Am",
-  leaveTime: "17:00 Pm",
+  arrivalTime: "",
+  leaveTime: "",
   workDescription: "",
   activitiesDone: "",
   notes: "",
@@ -66,8 +66,8 @@ const empty: ReportFormState = {
   signatureObjectKey: "",
   signedDate: new Date().toISOString().slice(0, 10),
   status: "DRAFT",
-  manpower: [{ name: "", qualification: "", workingHours: "8", remarks: "", extraJob: "" }],
-  equipment: [{ name: "", quantity: "1" }],
+  manpower: [{ name: "", qualification: "", workingHours: "", remarks: "", extraJob: "" }],
+  equipment: [{ name: "", quantity: "" }],
   photoKeys: [],
 };
 
@@ -271,7 +271,7 @@ export function ReportForm({
             onClick={() =>
               update("manpower", [
                 ...form.manpower,
-                { name: "", qualification: "", workingHours: "8", remarks: "", extraJob: "" },
+                { name: "", qualification: "", workingHours: "", remarks: "", extraJob: "" },
               ])
             }
           >
@@ -316,7 +316,7 @@ export function ReportForm({
           <button
             className="btn btn-ghost"
             type="button"
-            onClick={() => update("equipment", [...form.equipment, { name: "", quantity: "1" }])}
+            onClick={() => update("equipment", [...form.equipment, { name: "", quantity: "" }])}
           >
             + Baris
           </button>

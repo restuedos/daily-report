@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 function stripNumbers(value: string): string[] {
   const raw = String(value ?? "").trim();
@@ -37,18 +37,56 @@ type Props = {
   required?: boolean;
 };
 
+type Row = { id: string; text: string };
+
+let rowSeq = 0;
+function newRowId(prefix: string) {
+  rowSeq += 1;
+  return `${prefix}-${rowSeq}-${Date.now()}`;
+}
+
+function toRows(value: string, prefix: string): Row[] {
+  return stripNumbers(value).map((text) => ({
+    id: newRowId(prefix),
+    text,
+  }));
+}
+
 /** Numbered-list editor; persists plain text as `1. …\\n2. …` for PDF/DOCX. */
 export function NumberedListField({ label, value, onChange, required }: Props) {
-  const [items, setItems] = useState<string[]>(() => stripNumbers(value));
+  const uid = useId();
+  const [rows, setRows] = useState<Row[]>(() => toRows(value, uid));
+  const focusIndexRef = useRef<number | null>(null);
 
+  // Sync from parent only when serialized content actually differs (keep draft empty rows).
   useEffect(() => {
-    setItems(stripNumbers(value));
+    const incoming = toNumbered(stripNumbers(value));
+    const current = toNumbered(rows.map((r) => r.text));
+    if (incoming !== current) {
+      setRows(toRows(value, uid));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- compare serialized text only
   }, [value]);
 
-  const commit = (next: string[]) => {
-    const normalized = next.length ? next : [""];
-    setItems(normalized);
-    onChange(toNumbered(normalized));
+  useEffect(() => {
+    const idx = focusIndexRef.current;
+    if (idx == null) return;
+    focusIndexRef.current = null;
+    const el = document.getElementById(`${uid}-row-${idx}`) as HTMLInputElement | null;
+    el?.focus();
+  }, [rows, uid]);
+
+  const commit = (next: Row[]) => {
+    const normalized = next.length ? next : [{ id: newRowId(uid), text: "" }];
+    setRows(normalized);
+    onChange(toNumbered(normalized.map((r) => r.text)));
+  };
+
+  const addAfter = (index: number) => {
+    const next = [...rows];
+    next.splice(index + 1, 0, { id: newRowId(uid), text: "" });
+    focusIndexRef.current = index + 1;
+    commit(next);
   };
 
   return (
@@ -58,35 +96,35 @@ export function NumberedListField({ label, value, onChange, required }: Props) {
         {required ? " *" : ""}
       </label>
       <div className="space-y-2 rounded-md border border-[var(--line)] bg-white p-3">
-        {items.map((item, index) => (
-          <div key={index} className="flex items-start gap-2">
+        {rows.map((row, index) => (
+          <div key={row.id} className="flex items-start gap-2">
             <span className="mt-2 w-6 shrink-0 text-right text-sm text-[var(--muted)]">
               {index + 1}.
             </span>
             <input
+              id={`${uid}-row-${index}`}
               className="input flex-1"
-              value={item}
+              value={row.text}
               placeholder="Isi kegiatan…"
+              autoComplete="off"
               onChange={(e) => {
-                const next = [...items];
-                next[index] = e.target.value;
+                const next = [...rows];
+                next[index] = { ...row, text: e.target.value };
                 commit(next);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const next = [...items];
-                  next.splice(index + 1, 0, "");
-                  commit(next);
-                }
+                if (e.key !== "Enter") return;
+                // Prevent accidental form submit / page navigation; still add a row.
+                e.preventDefault();
+                addAfter(index);
               }}
             />
             <button
               type="button"
               className="mt-1 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
               onClick={() => {
-                if (items.length <= 1) commit([""]);
-                else commit(items.filter((_, i) => i !== index));
+                if (rows.length <= 1) commit([{ id: newRowId(uid), text: "" }]);
+                else commit(rows.filter((_, i) => i !== index));
               }}
               aria-label="Hapus baris"
             >
@@ -97,7 +135,10 @@ export function NumberedListField({ label, value, onChange, required }: Props) {
         <button
           type="button"
           className="text-sm text-[var(--accent)] hover:underline"
-          onClick={() => commit([...items, ""])}
+          onClick={() => {
+            focusIndexRef.current = rows.length;
+            commit([...rows, { id: newRowId(uid), text: "" }]);
+          }}
         >
           + Tambah poin
         </button>

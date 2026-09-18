@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 
 function storageRoot() {
   const root = process.env.STORAGE_DIR || path.join(process.cwd(), "storage");
-  return path.resolve(root);
+  return path.resolve(/* turbopackIgnore: true */ root);
 }
 
 function resolveSafePath(key: string) {
@@ -12,7 +12,7 @@ function resolveSafePath(key: string) {
   if (!normalized || normalized.includes("..")) {
     throw new Error("Invalid storage key");
   }
-  const full = path.resolve(storageRoot(), normalized);
+  const full = path.resolve(/* turbopackIgnore: true */ storageRoot(), normalized);
   const root = storageRoot();
   if (full !== root && !full.startsWith(root + path.sep)) {
     throw new Error("Invalid storage key");
@@ -21,7 +21,7 @@ function resolveSafePath(key: string) {
 }
 
 export async function ensureStorageRoot() {
-  await mkdir(storageRoot(), { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ storageRoot(), { recursive: true });
 }
 
 export async function uploadObject(
@@ -34,15 +34,15 @@ export async function uploadObject(
   const baseName = (filename || randomUUID()).replace(/[^a-zA-Z0-9._-]/g, "_");
   const key = `${safeFolder}/${Date.now()}-${baseName}`;
   const full = resolveSafePath(key);
-  await mkdir(path.dirname(full), { recursive: true });
-  await writeFile(full, file);
+  await mkdir(/* turbopackIgnore: true */ path.dirname(full), { recursive: true });
+  await writeFile(/* turbopackIgnore: true */ full, file);
   return key;
 }
 
 export async function deleteObject(key: string) {
   const full = resolveSafePath(key);
   try {
-    await unlink(full);
+    await unlink(/* turbopackIgnore: true */ full);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") throw err;
@@ -60,7 +60,7 @@ export function publicObjectUrl(key: string) {
 
 export async function getObjectBuffer(key: string) {
   const full = resolveSafePath(key);
-  return readFile(full);
+  return readFile(/* turbopackIgnore: true */ full);
 }
 
 export function getStorageRoot() {
