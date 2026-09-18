@@ -168,30 +168,32 @@ export const DAILY_REPORT_HTML = `
       <td class="party" colspan="6">{{companyName}}</td>
       <td class="party" colspan="3">{{clientName}}</td>
     </tr>
-    <tr class="r-sign-pad">
-      <td class="sign-box" colspan="6">
-        {{#if signatureUrl}}<img class="sig" src="{{signatureUrl}}" alt="" />{{else}}&nbsp;{{/if}}
+    <tr class="r-sign-block">
+      <td class="sign-area" colspan="6">
+        <div class="sign-pad">
+          {{#if signatureUrl}}<img class="sig" src="{{signatureUrl}}" alt="" />{{/if}}
+        </div>
+        <div class="sign-meta">
+          Signature: {{signerName}}{{#if signedDate}} : {{signedDate}}{{/if}}
+        </div>
       </td>
-      <td class="sign-box" colspan="3">&nbsp;</td>
-    </tr>
-    <tr class="r-sign-meta">
-      <td class="sign-meta" colspan="6">
-        Signature: {{signerName}}{{#if signedDate}} : {{signedDate}}{{/if}}
-      </td>
-      <td class="sign-meta client-meta" colspan="3">
-        <span class="sig-field">Signature: <span class="uline"></span></span>
-        <span class="sig-field">Date: <span class="uline"></span></span>
+      <td class="sign-area" colspan="3">
+        <div class="sign-pad">&nbsp;</div>
+        <div class="sign-meta client-meta">
+          <span class="sig-field">Signature: <span class="uline"></span></span>
+          <span class="sig-field">Date: <span class="uline"></span></span>
+        </div>
       </td>
     </tr>
   </table>
 </div>
 `.trim();
 
-/** Letter page + sample-like margins (twips≈: top540 right360 bottom280 left360). */
+/** Letter page — tight margins so the sheet sits closer to the paper edge. */
 export const DAILY_REPORT_CSS = `
 @page {
   size: letter portrait;
-  margin: 9.5mm 6.35mm 4.9mm 6.35mm;
+  margin: 5mm 4mm 4mm 4mm;
 }
 
 * { box-sizing: border-box; }
@@ -203,7 +205,7 @@ html, body {
   color: #000;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 9pt;
-  line-height: 1.25;
+  line-height: 1.2;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
@@ -212,7 +214,7 @@ html, body {
   width: 100%;
   max-width: 8.5in;
   margin: 0 auto;
-  padding: 9.5mm 6.35mm 4.9mm 6.35mm;
+  padding: 5mm 4mm 4mm 4mm;
   background: #fff;
 }
 
@@ -351,98 +353,114 @@ col.c8 { width: 20.24%; }
 }
 .body.indent { padding-left: 12px !important; }
 
-.time-line { font-weight: 700; height: 14px; padding: 1px 4px !important; }
+.time-line { font-weight: 700; height: 13px; padding: 1px 4px !important; }
 
 .r-activities td {
   height: auto;
-  min-height: 150px;
+  min-height: 0;
+  max-height: 118px;
   vertical-align: top !important;
+  overflow: hidden;
 }
 
 .activity {
   vertical-align: top !important;
-  padding: 4px 6px !important;
+  padding: 3px 5px !important;
 }
 /* Native ordered list → correct hanging wrap under the text */
 .activity-ol {
   margin: 0;
-  padding-left: 1.35em;
-  min-height: 3em;
+  padding-left: 1.25em;
+  min-height: 0;
   list-style-type: decimal;
   list-style-position: outside;
 }
 .activity-ol li {
-  margin: 0 0 2px;
+  margin: 0 0 1px;
   padding-left: 0.15em;
   white-space: normal;
 }
 .activity-ol.next-ol {
-  padding-left: calc(0.25in + 1.1em);
+  padding-left: calc(0.2in + 1em);
   min-height: 0;
 }
 .note-line {
-  margin-top: 8px;
+  margin-top: 4px;
   font-weight: 700;
-  padding-left: 12px;
+  padding-left: 10px;
 }
 
 .docs {
   vertical-align: top !important;
-  padding: 4px 6px !important;
+  padding: 3px 5px !important;
 }
-.docs-label { font-weight: 700; margin-bottom: 4px; }
+.docs-label { font-weight: 700; margin-bottom: 2px; }
 
 .photos {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
   align-content: flex-start;
 }
 .photos img {
-  /* Exactly 3 per row; force square like DOCX documentation thumbnails */
-  width: calc((100% - 8px) / 3);
+  /* Exactly 3 per row; smaller squares to keep the sheet on one page */
+  width: calc((100% - 6px) / 3);
   aspect-ratio: 1 / 1;
   height: auto;
+  max-height: 52px;
   object-fit: cover;
   border: 1px solid #444;
   box-sizing: border-box;
 }
 
 .r-next td {
-  min-height: 36px;
+  min-height: 28px;
   height: auto;
   vertical-align: middle !important;
 }
 .r-next td.next-shift {
-  padding: 4px 6px !important;
+  padding: 3px 5px !important;
   vertical-align: middle !important;
 }
 
-.r-sign-head td { height: 28px; vertical-align: middle !important; }
+.r-sign-head td { height: 22px; vertical-align: middle !important; }
 
-.r-sign-pad td.sign-box {
-  height: 64px;
-  vertical-align: middle !important;
-  text-align: center;
-  padding: 6px !important;
-  border-bottom: none !important;
+/* Signature image floats above the name/date line without pushing it to page 2 */
+.r-sign-block td.sign-area {
+  position: relative;
+  height: 70px;
+  padding: 0 !important;
+  vertical-align: bottom !important;
+  overflow: hidden;
 }
-
+.sign-pad {
+  position: relative;
+  height: 46px;
+  border-bottom: none;
+}
 .sig {
-  display: inline-block;
-  max-height: 48px;
-  max-width: 140px;
-  margin: 0 auto;
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  display: block;
+  max-height: 42px;
+  max-width: 130px;
+  margin: 0;
   object-fit: contain;
+  z-index: 1;
+  pointer-events: none;
 }
-
-.r-sign-meta td.sign-meta {
-  height: 28px;
-  vertical-align: middle !important;
-  text-align: center !important;
-  padding: 4px 6px !important;
+.sign-meta {
+  position: relative;
+  z-index: 2;
+  height: 24px;
+  line-height: 24px;
+  vertical-align: middle;
+  text-align: center;
+  padding: 0 6px !important;
   font-size: 9pt;
-  border-top: none !important;
+  background: transparent;
 }
 
 .client-meta {
@@ -467,6 +485,7 @@ col.c8 { width: 20.24%; }
 @media print {
   .page-pad { padding: 0; max-width: none; }
   table.main { page-break-inside: avoid; }
+  .r-sign-block { page-break-inside: avoid; }
 }
 `.trim();
 
