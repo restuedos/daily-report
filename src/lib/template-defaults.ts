@@ -216,6 +216,7 @@ html, body {
   margin: 0 auto;
   padding: 5mm 4mm 4mm 4mm;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .sheet { width: 100%; }
@@ -380,7 +381,7 @@ col.c8 { width: 20.24%; }
 }
 .activity-ol.next-ol {
   padding-left: calc(0.2in + 1em);
-  min-height: 0;
+  min-height: 3em;
 }
 .note-line {
   margin-top: 4px;
@@ -415,13 +416,16 @@ col.c8 { width: 20.24%; }
 }
 
 .r-next td {
-  min-height: 28px;
-  height: auto;
-  vertical-align: middle !important;
+  /* Expand when sparse so the sheet fills the page without a second page */
+  min-height: 42mm;
+  height: 42mm;
+  vertical-align: top !important;
 }
 .r-next td.next-shift {
-  padding: 3px 5px !important;
-  vertical-align: middle !important;
+  padding: 4px 6px !important;
+  vertical-align: top !important;
+  min-height: 42mm;
+  height: 42mm;
 }
 
 .r-sign-head td { height: 22px; vertical-align: middle !important; }
@@ -484,8 +488,26 @@ col.c8 { width: 20.24%; }
 }
 
 @media print {
-  .page-pad { padding: 0; max-width: none; }
-  table.main { page-break-inside: avoid; }
+  .page-pad {
+    padding: 0;
+    max-width: none;
+    /* Letter content box (@page margins 5+4mm) — fill one page, never spill */
+    height: calc(11in - 9mm);
+    max-height: calc(11in - 9mm);
+    overflow: hidden;
+  }
+  .sheet { height: 100%; }
+  table.main {
+    height: 100%;
+    page-break-inside: avoid;
+  }
+  /* Leftover vertical space goes into next-shift */
+  .r-next td,
+  .r-next td.next-shift {
+    height: 100%;
+    min-height: 42mm;
+    vertical-align: top !important;
+  }
   .r-sign-block { page-break-inside: avoid; }
 }
 `.trim();
