@@ -37,7 +37,7 @@ export const reportSchema = z.object({
   status: z.enum(["DRAFT", "FINAL"]).optional(),
   manpower: z.array(manpowerSchema).default([]),
   equipment: z.array(equipmentSchema).default([]),
-  photoKeys: z.array(z.string()).default([]),
+  photoKeys: z.array(z.string()).max(6).default([]),
 });
 
 export const deliveryNoteSchema = z.object({

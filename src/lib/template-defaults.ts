@@ -397,17 +397,17 @@ col.c8 { width: 20.24%; }
 .docs-label { font-weight: 700; margin-bottom: 2px; }
 
 .photos {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 3px;
-  align-content: flex-start;
+  width: 100%;
+  max-width: 168px; /* 3×54px squares — keeps 1:1 and fits one page */
 }
 .photos img {
-  /* Exactly 3 per row; smaller squares to keep the sheet on one page */
-  width: calc((100% - 6px) / 3);
+  display: block;
+  width: 100%;
   aspect-ratio: 1 / 1;
   height: auto;
-  max-height: 52px;
   object-fit: cover;
   border: 1px solid #444;
   box-sizing: border-box;

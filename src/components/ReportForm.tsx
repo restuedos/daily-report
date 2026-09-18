@@ -71,6 +71,8 @@ const empty: ReportFormState = {
   photoKeys: [],
 };
 
+const MAX_DOC_PHOTOS = 6;
+
 function fileUrl(key: string) {
   return `/api/files/${key.split("/").map(encodeURIComponent).join("/")}`;
 }
@@ -107,6 +109,7 @@ function buildSavePayload(form: ReportFormState) {
     // Drop blank placeholder rows so Zod does not reject drafts / tunnel saves
     manpower: form.manpower.filter((m) => m.name.trim()),
     equipment: form.equipment.filter((e) => e.name.trim()),
+    photoKeys: form.photoKeys.slice(0, MAX_DOC_PHOTOS),
   };
 }
 
@@ -124,6 +127,35 @@ function formatSaveError(status: number, data: unknown): string {
     }
   }
   return "Gagal menyimpan. Periksa field wajib.";
+}
+
+function AssetPreview({
+  objectKey,
+  onRemove,
+  label,
+}: {
+  objectKey: string;
+  onRemove: () => void;
+  label: string;
+}) {
+  if (!objectKey) return null;
+  return (
+    <div className="mt-2 flex items-center gap-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={fileUrl(objectKey)}
+        alt={label}
+        className="h-14 w-14 rounded border border-black/10 bg-white object-contain"
+      />
+      <button
+        className="rounded bg-black/70 px-2 py-0.5 text-xs text-white hover:bg-black"
+        type="button"
+        onClick={onRemove}
+      >
+        Hapus
+      </button>
+    </div>
+  );
 }
 
 export function ReportForm({
@@ -197,6 +229,17 @@ export function ReportForm({
     }
   }
 
+  async function clearAsset(field: "companyLogoKey" | "clientLogoKey" | "signatureObjectKey") {
+    const key = form[field];
+    update(field, "");
+    if (!key) return;
+    try {
+      await deleteUploadedFile(key);
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -260,13 +303,26 @@ export function ReportForm({
             type="file"
             accept="image/*"
             onChange={async (e) => {
-              const file = e.target.files?.[0];
+              const input = e.target;
+              const file = input.files?.[0];
               if (!file) return;
-              const key = await uploadFile(file, "logos");
-              update("companyLogoKey", key);
+              try {
+                const prev = form.companyLogoKey;
+                const key = await uploadFile(file, "logos");
+                update("companyLogoKey", key);
+                if (prev) void deleteUploadedFile(prev);
+              } catch (err) {
+                setMessage(err instanceof Error ? err.message : "Upload gagal");
+              } finally {
+                input.value = "";
+              }
             }}
           />
-          {form.companyLogoKey && <span className="text-xs text-[var(--muted)]">{form.companyLogoKey}</span>}
+          <AssetPreview
+            objectKey={form.companyLogoKey}
+            label="Logo perusahaan"
+            onRemove={() => void clearAsset("companyLogoKey")}
+          />
         </div>
         <div className="field">
           <label className="label">Client tersimpan</label>
@@ -301,11 +357,25 @@ export function ReportForm({
             type="file"
             accept="image/*"
             onChange={async (e) => {
-              const file = e.target.files?.[0];
+              const input = e.target;
+              const file = input.files?.[0];
               if (!file) return;
-              const key = await uploadFile(file, "logos");
-              update("clientLogoKey", key);
+              try {
+                const prev = form.clientLogoKey;
+                const key = await uploadFile(file, "logos");
+                update("clientLogoKey", key);
+                if (prev) void deleteUploadedFile(prev);
+              } catch (err) {
+                setMessage(err instanceof Error ? err.message : "Upload gagal");
+              } finally {
+                input.value = "";
+              }
             }}
+          />
+          <AssetPreview
+            objectKey={form.clientLogoKey}
+            label="Logo client"
+            onRemove={() => void clearAsset("clientLogoKey")}
           />
         </div>
       </section>
@@ -418,20 +488,34 @@ export function ReportForm({
           onChange={(v) => update("activitiesNextShift", v)}
         />
         <div className="field md:col-span-2">
-          <label className="label">Documentation (multi foto)</label>
+          <label className="label">Documentation (multi foto, max {MAX_DOC_PHOTOS})</label>
           <input
             className="input"
             type="file"
             accept="image/*"
             multiple
+            disabled={form.photoKeys.length >= MAX_DOC_PHOTOS}
             onChange={async (e) => {
               const input = e.target;
               const files = Array.from(input.files || []);
               if (!files.length) return;
+              const slots = MAX_DOC_PHOTOS - form.photoKeys.length;
+              if (slots <= 0) {
+                setMessage(`Maksimal ${MAX_DOC_PHOTOS} foto dokumentasi`);
+                input.value = "";
+                return;
+              }
+              const selected = files.slice(0, slots);
+              if (files.length > slots) {
+                setMessage(`Hanya ${slots} slot tersisa (max ${MAX_DOC_PHOTOS} foto)`);
+              }
               try {
                 const keys: string[] = [];
-                for (const file of files) keys.push(await uploadFile(file, "docs"));
-                setForm((f) => ({ ...f, photoKeys: [...f.photoKeys, ...keys] }));
+                for (const file of selected) keys.push(await uploadFile(file, "docs"));
+                setForm((f) => ({
+                  ...f,
+                  photoKeys: [...f.photoKeys, ...keys].slice(0, MAX_DOC_PHOTOS),
+                }));
               } catch (err) {
                 setMessage(err instanceof Error ? err.message : "Upload gagal");
               } finally {
@@ -439,12 +523,15 @@ export function ReportForm({
               }
             }}
           />
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {form.photoKeys.length}/{MAX_DOC_PHOTOS} foto
+          </p>
           {form.photoKeys.length > 0 ? (
-            <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            <ul className="mt-3 grid max-w-md grid-cols-3 gap-3">
               {form.photoKeys.map((key) => (
-                <li key={key} className="relative overflow-hidden rounded border border-black/10 bg-black/5">
+                <li key={key} className="relative aspect-square overflow-hidden rounded border border-black/10 bg-black/5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={fileUrl(key)} alt="" className="aspect-square w-full object-cover" />
+                  <img src={fileUrl(key)} alt="" className="h-full w-full object-cover" />
                   <button
                     className="absolute right-1 top-1 rounded bg-black/70 px-2 py-0.5 text-xs text-white hover:bg-black"
                     type="button"
@@ -477,11 +564,25 @@ export function ReportForm({
             type="file"
             accept="image/*"
             onChange={async (e) => {
-              const file = e.target.files?.[0];
+              const input = e.target;
+              const file = input.files?.[0];
               if (!file) return;
-              const key = await uploadFile(file, "signatures");
-              update("signatureObjectKey", key);
+              try {
+                const prev = form.signatureObjectKey;
+                const key = await uploadFile(file, "signatures");
+                update("signatureObjectKey", key);
+                if (prev) void deleteUploadedFile(prev);
+              } catch (err) {
+                setMessage(err instanceof Error ? err.message : "Upload gagal");
+              } finally {
+                input.value = "";
+              }
             }}
+          />
+          <AssetPreview
+            objectKey={form.signatureObjectKey}
+            label="Tanda tangan"
+            onRemove={() => void clearAsset("signatureObjectKey")}
           />
         </div>
       </section>
