@@ -101,8 +101,13 @@ function writeTextKeepDrawings(
     drawingsFirst?: boolean;
     keepDrawings?: boolean;
     vAlign?: "center" | "top" | "bottom";
-    /** Hide specific cell borders (e.g. signature meta top). */
-    borders?: { top?: "nil"; bottom?: "nil"; left?: "nil"; right?: "nil" };
+    /** Override specific cell borders (nil hides; single restores a thin line). */
+    borders?: {
+      top?: "nil" | "single";
+      bottom?: "nil" | "single";
+      left?: "nil" | "single";
+      right?: "nil" | "single";
+    };
   },
 ) {
   const keepDrawings = opts?.keepDrawings !== false;
@@ -142,7 +147,12 @@ function writeTextKeepDrawings(
 function setCellBorders(
   doc: any,
   cell: any,
-  borders: { top?: "nil"; bottom?: "nil"; left?: "nil"; right?: "nil" },
+  borders: {
+    top?: "nil" | "single";
+    bottom?: "nil" | "single";
+    left?: "nil" | "single";
+    right?: "nil" | "single";
+  },
 ) {
   let tcPr: any = null;
   for (const child of Array.from(cell.childNodes)) {
@@ -178,14 +188,17 @@ function setCellBorders(
   }
 
   for (const side of ["top", "left", "bottom", "right"] as const) {
-    if (!borders[side]) continue;
-    const tag = side;
-    const found = tcBorders.getElementsByTagName(`w:${tag}`);
-    const xml = `<w:tcBorders xmlns:w="${W_NS}"><w:${tag} w:val="nil" w:sz="0" w:space="0" w:color="auto"/></w:tcBorders>`;
-    const frag = new DOMParser().parseFromString(xml, "application/xml");
+    const style = borders[side];
+    if (!style) continue;
+    const found = tcBorders.getElementsByTagName(`w:${side}`);
+    const borderXml =
+      style === "nil"
+        ? `<w:tcBorders xmlns:w="${W_NS}"><w:${side} w:val="nil" w:sz="0" w:space="0" w:color="auto"/></w:tcBorders>`
+        : `<w:tcBorders xmlns:w="${W_NS}"><w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:tcBorders>`;
+    const frag = new DOMParser().parseFromString(borderXml, "application/xml");
     const root = frag.documentElement;
     if (!root) continue;
-    const node = doc.importNode(root.getElementsByTagName(`w:${tag}`)[0], true);
+    const node = doc.importNode(root.getElementsByTagName(`w:${side}`)[0], true);
     if (found.length) tcBorders.replaceChild(node, found[0]);
     else tcBorders.appendChild(node);
   }
@@ -603,7 +616,8 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
         center: true,
       },
     ],
-    { vAlign: "center", borders: { top: "nil" } },
+    // Clone inherits pad's bottom:nil — restore bottom so the table closes under name/date
+    { vAlign: "center", borders: { top: "nil", bottom: "single" } },
   );
   writeTextKeepDrawings(
     doc,
@@ -615,7 +629,7 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
         center: true,
       },
     ],
-    { vAlign: "center", borders: { top: "nil" } },
+    { vAlign: "center", borders: { top: "nil", bottom: "single" } },
   );
 
   let xml = new XMLSerializer().serializeToString(doc);
