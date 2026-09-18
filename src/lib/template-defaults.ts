@@ -401,6 +401,8 @@ col.c8 { width: 20.24%; }
   gap: 3px;
   width: max-content;
   max-width: 100%;
+  /* Keep two-row height even when fewer than 4 photos (one row only) */
+  min-height: calc(64mm + 3px);
 }
 .photos img {
   display: block;
