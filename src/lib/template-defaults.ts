@@ -134,7 +134,7 @@ export const DAILY_REPORT_HTML = `
     <tr><td class="time-line" colspan="9">{{arrivalTime}}: Arrival to the site</td></tr>
     <tr><td class="section" colspan="9">Activities done this day:</td></tr>
     <tr class="r-activities">
-      <td class="activity" colspan="4">
+      <td class="activity" colspan="3">
         <ol class="activity-ol">
           {{#each activitiesDoneItems}}
           <li>{{this}}</li>
@@ -143,7 +143,7 @@ export const DAILY_REPORT_HTML = `
         <div class="note-line">Note: {{notes}}</div>
         <div class="note-line">Work Evaluation: {{workEvaluation}}</div>
       </td>
-      <td class="docs" colspan="5">
+      <td class="docs" colspan="6">
         <div class="docs-label">Documentation:</div>
         <div class="photos">
           {{#each photos}}
@@ -358,9 +358,7 @@ col.c8 { width: 20.24%; }
 .r-activities td {
   height: auto;
   min-height: 0;
-  max-height: 118px;
   vertical-align: top !important;
-  overflow: hidden;
 }
 
 .activity {
@@ -399,9 +397,8 @@ col.c8 { width: 20.24%; }
 .photos {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 3px;
+  gap: 4px;
   width: 100%;
-  max-width: 168px; /* 3×54px squares — keeps 1:1 and fits one page */
 }
 .photos img {
   display: block;
