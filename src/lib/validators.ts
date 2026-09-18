@@ -2,15 +2,15 @@ import { z } from "zod";
 
 export const manpowerSchema = z.object({
   name: z.string().min(1),
-  qualification: z.string().min(1),
-  workingHours: z.string().min(1),
+  qualification: z.string().default(""),
+  workingHours: z.string().default(""),
   remarks: z.string().optional().nullable(),
   extraJob: z.string().optional().nullable(),
 });
 
 export const equipmentSchema = z.object({
   name: z.string().min(1),
-  quantity: z.string().min(1),
+  quantity: z.string().default(""),
 });
 
 export const reportSchema = z.object({

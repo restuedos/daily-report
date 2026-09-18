@@ -71,14 +71,59 @@ const empty: ReportFormState = {
   photoKeys: [],
 };
 
+function fileUrl(key: string) {
+  return `/api/files/${key.split("/").map(encodeURIComponent).join("/")}`;
+}
+
 async function uploadFile(file: File, folder: string) {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("folder", folder);
-  const res = await fetch("/api/uploads", { method: "POST", body: fd });
-  if (!res.ok) throw new Error("Upload gagal");
+  const res = await fetch("/api/uploads", { method: "POST", body: fd, credentials: "include" });
+  if (!res.ok) {
+    if (res.status === 401) throw new Error("Sesi berakhir. Login ulang lewat URL tunnel.");
+    throw new Error("Upload gagal");
+  }
   const data = await res.json();
   return data.key as string;
+}
+
+async function deleteUploadedFile(key: string) {
+  await fetch("/api/uploads", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ key }),
+  });
+}
+
+function buildSavePayload(form: ReportFormState) {
+  return {
+    ...form,
+    companyLogoKey: form.companyLogoKey || null,
+    clientLogoKey: form.clientLogoKey || null,
+    clientId: form.clientId || null,
+    signatureObjectKey: form.signatureObjectKey || null,
+    // Drop blank placeholder rows so Zod does not reject drafts / tunnel saves
+    manpower: form.manpower.filter((m) => m.name.trim()),
+    equipment: form.equipment.filter((e) => e.name.trim()),
+  };
+}
+
+function formatSaveError(status: number, data: unknown): string {
+  if (status === 401) {
+    return "Sesi berakhir. Login ulang lewat URL tunnel, lalu simpan lagi.";
+  }
+  if (data && typeof data === "object" && "error" in data) {
+    const err = (data as { error: unknown }).error;
+    if (typeof err === "string" && err.trim()) return err;
+    if (err && typeof err === "object" && "fieldErrors" in err) {
+      const fields = (err as { fieldErrors: Record<string, string[]> }).fieldErrors;
+      const first = Object.entries(fields).find(([, msgs]) => msgs?.length);
+      if (first) return `${first[0]}: ${first[1][0]}`;
+    }
+  }
+  return "Gagal menyimpan. Periksa field wajib.";
 }
 
 export function ReportForm({
@@ -101,16 +146,7 @@ export function ReportForm({
       .catch(() => undefined);
   }, []);
 
-  const payload = useMemo(
-    () => ({
-      ...form,
-      companyLogoKey: form.companyLogoKey || null,
-      clientLogoKey: form.clientLogoKey || null,
-      clientId: form.clientId || null,
-      signatureObjectKey: form.signatureObjectKey || null,
-    }),
-    [form],
-  );
+  const payload = useMemo(() => buildSavePayload(form), [form]);
 
   const save = useCallback(
     async (silent = false) => {
@@ -120,16 +156,19 @@ export function ReportForm({
         const res = await fetch(reportId ? `/api/reports/${reportId}` : "/api/reports", {
           method: reportId ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify(payload),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error("Gagal menyimpan");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(formatSaveError(res.status, data));
         if (!reportId && data.report?.id) {
           router.replace(`/reports/${data.report.id}`);
         }
         if (!silent) setMessage("Tersimpan");
-      } catch {
-        if (!silent) setMessage("Gagal menyimpan");
+      } catch (err) {
+        if (!silent) {
+          setMessage(err instanceof Error ? err.message : "Gagal menyimpan");
+        }
       } finally {
         setSaving(false);
       }
@@ -147,6 +186,15 @@ export function ReportForm({
 
   function update<K extends keyof ReportFormState>(key: K, value: ReportFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function removePhoto(key: string) {
+    setForm((f) => ({ ...f, photoKeys: f.photoKeys.filter((k) => k !== key) }));
+    try {
+      await deleteUploadedFile(key);
+    } catch {
+      // UI already removed; storage cleanup is best-effort
+    }
   }
 
   return (
@@ -377,13 +425,39 @@ export function ReportForm({
             accept="image/*"
             multiple
             onChange={async (e) => {
-              const files = Array.from(e.target.files || []);
-              const keys: string[] = [];
-              for (const file of files) keys.push(await uploadFile(file, "docs"));
-              update("photoKeys", [...form.photoKeys, ...keys]);
+              const input = e.target;
+              const files = Array.from(input.files || []);
+              if (!files.length) return;
+              try {
+                const keys: string[] = [];
+                for (const file of files) keys.push(await uploadFile(file, "docs"));
+                setForm((f) => ({ ...f, photoKeys: [...f.photoKeys, ...keys] }));
+              } catch (err) {
+                setMessage(err instanceof Error ? err.message : "Upload gagal");
+              } finally {
+                input.value = "";
+              }
             }}
           />
-          <p className="text-xs text-[var(--muted)]">{form.photoKeys.length} foto terunggah</p>
+          {form.photoKeys.length > 0 ? (
+            <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {form.photoKeys.map((key) => (
+                <li key={key} className="relative overflow-hidden rounded border border-black/10 bg-black/5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={fileUrl(key)} alt="" className="aspect-square w-full object-cover" />
+                  <button
+                    className="absolute right-1 top-1 rounded bg-black/70 px-2 py-0.5 text-xs text-white hover:bg-black"
+                    type="button"
+                    onClick={() => void removePhoto(key)}
+                  >
+                    Hapus
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-[var(--muted)]">Belum ada foto</p>
+          )}
         </div>
       </section>
 
