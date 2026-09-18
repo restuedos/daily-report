@@ -386,13 +386,21 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
     throw new Error(`Sample DOCX unexpected row count: ${rows.length}`);
   }
 
-  writeTextKeepDrawings(doc, cellAt(rows[0], 1), [
-    { text: `PROJECT NO: ${ctx.projectNo}`, bold: true, center: true, size: 20 },
-  ]);
-  writeTextKeepDrawings(doc, cellAt(rows[1], 1), [
-    { text: "PROJECT:", bold: true, center: true, size: 20 },
-    { text: ctx.projectName, bold: true, center: true, size: 22 },
-  ]);
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[0], 1),
+    [{ text: `PROJECT NO: ${ctx.projectNo}`, bold: true, center: true, size: 20 }],
+    { vAlign: "center" },
+  );
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[1], 1),
+    [
+      { text: "PROJECT:", bold: true, center: true, size: 20 },
+      { text: ctx.projectName, bold: true, center: true, size: 22 },
+    ],
+    { vAlign: "center" },
+  );
 
   // Logo cells (row 0) — drop sample drawings when nothing was uploaded
   if (!hasClientLogo) {
@@ -412,21 +420,30 @@ export async function fillDailyReportDocx(ctx: DailyReportContext) {
     [{ text: ctx.clientName, bold: true, center: true, size: 18 }],
     { vAlign: "center" },
   );
-  writeTextKeepDrawings(doc, cellAt(rows[2], 1), [
-    { text: `Date: ${ctx.reportDate}`, bold: true, center: true, size: 18 },
-  ]);
-  writeTextKeepDrawings(doc, cellAt(rows[2], 2), [
-    { text: `DAILY REPORT No: ${ctx.reportNo}`, bold: true, center: true, size: 18 },
-  ]);
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[2], 1),
+    [{ text: `Date: ${ctx.reportDate}`, bold: true, center: true, size: 18 }],
+    { vAlign: "center" },
+  );
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[2], 2),
+    [{ text: `DAILY REPORT No: ${ctx.reportNo}`, bold: true, center: true, size: 18 }],
+    { vAlign: "center" },
+  );
   writeTextKeepDrawings(
     doc,
     cellAt(rows[2], 3),
     [{ text: ctx.companyName, bold: true, center: true, size: 18 }],
     { vAlign: "center" },
   );
-  writeTextKeepDrawings(doc, cellAt(rows[3], 2), [
-    { text: `WEEK No: ${ctx.weekNo}`, bold: true, center: true, size: 18 },
-  ]);
+  writeTextKeepDrawings(
+    doc,
+    cellAt(rows[3], 2),
+    [{ text: `WEEK No: ${ctx.weekNo}`, bold: true, center: true, size: 18 }],
+    { vAlign: "center" },
+  );
 
   for (let i = 0; i < 7; i++) {
     const row = rows[5 + i];
